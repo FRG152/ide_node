@@ -1,12 +1,10 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import { memo } from 'react'
 import { colorForFile, extensionOf } from '../lib/fileColors'
-import { useProjectStore } from '../store'
+import { useEditorStore } from '../stores/editorStore'
+import { useProjectStore } from '../stores/projectStore'
 import type { FileFlowNode, FolderFlowNode, MoreFlowNode } from './buildGraph'
-
-function classes(...names: (string | false)[]): string {
-  return names.filter(Boolean).join(' ')
-}
+import { classes } from '../lib/classes'
 
 /** Los handles solo sirven para anclar las aristas; no se pueden crear conexiones. */
 function Handles({ source = true }: { source?: boolean }) {
@@ -41,6 +39,7 @@ export const FolderNode = memo(function FolderNode({ data }: NodeProps<FolderFlo
 
 export const FileNode = memo(function FileNode({ data }: NodeProps<FileFlowNode>) {
   const selected = useProjectStore((s) => s.selected === data.path)
+  const dirty = useEditorStore((s) => s.dirty[data.path] === true)
   const color = colorForFile(data.name)
   return (
     <div
@@ -50,6 +49,7 @@ export const FileNode = memo(function FileNode({ data }: NodeProps<FileFlowNode>
     >
       <Handles source={false} />
       <span className="node-name">{data.name}</span>
+      {dirty && <span className="node-dirty" title="Cambios sin guardar">●</span>}
       <span className="node-ext" style={{ color }}>
         {extensionOf(data.name)}
       </span>

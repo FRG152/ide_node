@@ -1,22 +1,27 @@
 import { create } from 'zustand'
-import type { FsEntry, IndexEntry, ProjectInfo } from '../../shared/ipc'
-import { errorMessage } from './lib/errors'
-import { ancestorsOf, depthOf, parentOf } from './lib/paths'
+import type { FsChanges, FsEntry, IndexEntry, ProjectInfo } from '../../../shared/ipc'
+import { errorMessage } from '../lib/errors'
+import { ancestorsOf, depthOf, parentOf } from '../lib/paths'
+import { useEditorStore } from './editorStore'
+import { useTerminalStore } from './terminalStore'
 
 /** Máximo de hijos que se dibujan por carpeta antes de mostrar un nodo "+N más". */
 export const MAX_VISIBLE_CHILDREN = 100
+
+/** Tras cambios en disco, esperamos a que se calmen antes de reindexar el proyecto entero. */
+const REINDEX_DELAY_MS = 1000
 
 type Flags = Record<string, true>
 
 /**
  * Petición de movimiento de cámara para el grafo:
  * - fit: encuadrar todo el árbol.
- * - focus: centrar un nodo (animado).
+ * - focus: centrar un nodo (animado). Con `ifHidden`, solo si no está a la vista.
  * - keep: tras un cambio de layout, dejar ese nodo en el mismo punto de la pantalla.
  */
 export type ViewRequest = { id: number } & (
   | { kind: 'fit' }
-  | { kind: 'focus'; path: string }
+  | { kind: 'focus'; path: string; ifHidden?: boolean }
   | { kind: 'keep'; path: string }
 )
 
@@ -31,11 +36,11 @@ interface ProjectState {
   showAll: Flags
   /** Nodo resaltado (archivo o carpeta). */
   selected: string | null
-  /** Archivo abierto en el panel de vista previa. */
-  openFile: string | null
   index: IndexEntry[]
   indexing: boolean
   indexTruncated: boolean
+  /** Scripts del package.json de la raíz. */
+  scripts: Record<string, string>
   /** Petición pendiente para mover la cámara del grafo. */
   viewRequest: ViewRequest | null
   error: string | null
@@ -43,22 +48,32 @@ interface ProjectState {
   openFolder: () => Promise<void>
   openInitialProject: () => Promise<void>
   toggleFolder: (path: string) => Promise<void>
+  /** Expande hasta `path`, lo selecciona, centra la cámara y, si es archivo, lo abre en el editor. */
   reveal: (path: string) => Promise<void>
-  selectFile: (path: string) => void
-  closeFile: () => void
+  select: (path: string | null) => void
+  /** Selecciona el nodo y centra la cámara en él. */
+  focus: (path: string) => void
+  /** Selecciona el nodo y mueve la cámara solo si quedó fuera de la vista. */
+  ensureVisible: (path: string) => void
   showAllChildren: (path: string) => void
   collapseAll: () => void
   refresh: () => Promise<void>
+  applyFsChanges: (changes: FsChanges) => Promise<void>
   setError: (message: string | null) => void
 }
 
 let nextRequestId = 1
 const fitRequest = (): ViewRequest => ({ id: nextRequestId++, kind: 'fit' })
-const focusRequest = (path: string): ViewRequest => ({ id: nextRequestId++, kind: 'focus', path })
+const focusRequest = (path: string, ifHidden = false): ViewRequest => ({
+  id: nextRequestId++,
+  kind: 'focus',
+  path,
+  ifHidden
+})
 const keepRequest = (path: string): ViewRequest => ({ id: nextRequestId++, kind: 'keep', path })
 
-function without(flags: Flags, key: string): Flags {
-  const copy = { ...flags }
+function without<T>(record: Record<string, T>, key: string): Record<string, T> {
+  const copy = { ...record }
   delete copy[key]
   return copy
 }
@@ -73,21 +88,33 @@ function addListing(
   children[dir] = list.map((e) => e.path)
 }
 
+function parseScripts(packageJson: string): Record<string, string> {
+  try {
+    const scripts = (JSON.parse(packageJson) as { scripts?: unknown }).scripts
+    if (!scripts || typeof scripts !== 'object') return {}
+    return Object.fromEntries(Object.entries(scripts).filter(([, cmd]) => typeof cmd === 'string'))
+  } catch {
+    return {} // package.json a medio escribir o inválido
+  }
+}
+
 const emptyProjectState = {
   entries: {},
   children: {},
   expanded: {},
   showAll: {},
   selected: null,
-  openFile: null,
   index: [],
   indexing: false,
   indexTruncated: false,
+  scripts: {},
   viewRequest: null,
   error: null
 }
 
 export const useProjectStore = create<ProjectState>()((set, get) => {
+  let reindexTimer: ReturnType<typeof setTimeout> | null = null
+
   /** Lista una carpeta si aún no está cargada. Devuelve false si falló o cambió el proyecto. */
   async function loadChildren(dir: string): Promise<boolean> {
     const project = get().project
@@ -125,7 +152,30 @@ export const useProjectStore = create<ProjectState>()((set, get) => {
     }
   }
 
+  function scheduleReindex(): void {
+    if (reindexTimer) clearTimeout(reindexTimer)
+    reindexTimer = setTimeout(() => {
+      reindexTimer = null
+      void rebuildIndex()
+    }, REINDEX_DELAY_MS)
+  }
+
+  async function loadScripts(): Promise<void> {
+    const project = get().project
+    if (!project) return
+    let scripts: Record<string, string> = {}
+    try {
+      const file = await window.api.readFile('package.json')
+      if (file.kind === 'text') scripts = parseScripts(file.content)
+    } catch {
+      // sin package.json: proyecto que no es de Node
+    }
+    if (get().project === project) set({ scripts })
+  }
+
   async function loadProject(info: ProjectInfo): Promise<void> {
+    useEditorStore.getState().closeAll()
+    useTerminalStore.getState().reset()
     set({
       ...emptyProjectState,
       project: info,
@@ -135,6 +185,7 @@ export const useProjectStore = create<ProjectState>()((set, get) => {
     await loadChildren('')
     if (get().project === info) set({ viewRequest: fitRequest() })
     void rebuildIndex()
+    void loadScripts()
   }
 
   return {
@@ -143,6 +194,7 @@ export const useProjectStore = create<ProjectState>()((set, get) => {
 
     async openFolder() {
       try {
+        if (!(await useEditorStore.getState().confirmCloseAll())) return
         const info = await window.api.openFolder()
         if (info) await loadProject(info)
       } catch (err) {
@@ -183,6 +235,10 @@ export const useProjectStore = create<ProjectState>()((set, get) => {
         return
       }
 
+      // Primero el editor: si es la primera pestaña, el grafo se estrecha, y así el
+      // centrado de abajo ya se calcula con el tamaño final del lienzo.
+      if (entry.kind === 'file') await useEditorStore.getState().open(path)
+
       set((s) => {
         const expanded = { ...s.expanded }
         for (const dir of ancestors) expanded[dir] = true
@@ -194,22 +250,20 @@ export const useProjectStore = create<ProjectState>()((set, get) => {
           showAll[parent] = true
         }
 
-        return {
-          expanded,
-          showAll,
-          selected: path,
-          openFile: entry.kind === 'file' ? path : s.openFile,
-          viewRequest: focusRequest(path)
-        }
+        return { expanded, showAll, selected: path, viewRequest: focusRequest(path) }
       })
     },
 
-    selectFile(path) {
-      set({ selected: path, openFile: path })
+    select(path) {
+      set({ selected: path })
     },
 
-    closeFile() {
-      set({ openFile: null })
+    focus(path) {
+      set({ selected: path, viewRequest: focusRequest(path) })
+    },
+
+    ensureVisible(path) {
+      set({ selected: path, viewRequest: focusRequest(path, true) })
     },
 
     showAllChildren(path) {
@@ -252,10 +306,52 @@ export const useProjectStore = create<ProjectState>()((set, get) => {
         children,
         expanded: stillExpanded,
         selected: keepIfExists(s.selected),
-        openFile: keepIfExists(s.openFile),
         error: null
       }))
       void rebuildIndex()
+      void loadScripts()
+    },
+
+    async applyFsChanges({ rootPath, structural, modified }) {
+      const project = get().project
+      if (!project || project.rootPath !== rootPath) return
+
+      if (structural.length > 0) {
+        // Solo relistamos carpetas que ya estaban cargadas; el resto se listará al abrirlas.
+        const dirs = [...new Set(structural.map(parentOf))].filter((dir) => get().children[dir])
+        const listings = await Promise.all(
+          dirs.map((dir) =>
+            window.api.listDir(dir).then(
+              (list) => ({ dir, list }),
+              () => ({ dir, list: null }) // la carpeta ya no existe
+            )
+          )
+        )
+        if (get().project !== project) return
+
+        if (listings.length > 0) {
+          set((s) => {
+            const entries = { ...s.entries }
+            let children = { ...s.children }
+            let expanded = s.expanded
+            for (const { dir, list } of listings) {
+              if (list) {
+                addListing(entries, children, dir, list)
+              } else {
+                children = without(children, dir)
+                expanded = without(expanded, dir)
+              }
+            }
+            // El layout se recoloca: mantenemos quieto el nodo que el usuario está mirando.
+            return { entries, children, expanded, viewRequest: keepRequest(s.selected ?? '') }
+          })
+        }
+        scheduleReindex()
+      }
+
+      const touched = [...structural, ...modified]
+      if (touched.includes('package.json')) void loadScripts()
+      await useEditorStore.getState().syncFromDisk(touched)
     },
 
     setError(message) {

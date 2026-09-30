@@ -1,0 +1,103 @@
+import { useEffect, useRef } from 'react'
+import { useShallow } from 'zustand/react/shallow'
+import { useProjectStore } from '../stores/projectStore'
+import { useTerminalStore, type TerminalTab } from '../stores/terminalStore'
+import { attachInstance, fitInstance } from './registry'
+import { classes } from '../lib/classes'
+
+function statusOf(tab: TerminalTab): string {
+  if (tab.exitCode === null) return 'running'
+  return tab.exitCode === 0 ? 'ok' : 'failed'
+}
+
+export function TerminalPanel() {
+  const { tabs, active, newShell, runScript, stop, restart, close, activate, togglePanel } = useTerminalStore(
+    useShallow((s) => ({
+      tabs: s.tabs,
+      active: s.active,
+      newShell: s.newShell,
+      runScript: s.runScript,
+      stop: s.stop,
+      restart: s.restart,
+      close: s.close,
+      activate: s.activate,
+      togglePanel: s.togglePanel
+    }))
+  )
+  const scripts = useProjectStore((s) => s.scripts)
+  const activeTab = tabs.find((t) => t.id === active)
+
+  return (
+    <div className="terminal-panel">
+      <div className="terminal-toolbar">
+        <div className="terminal-tabs">
+          {tabs.map((tab) => (
+            <div
+              key={tab.id}
+              className={classes('terminal-tab', tab.id === active && 'active')}
+              onClick={() => activate(tab.id)}
+              title={tab.command ?? 'Shell interactiva'}
+            >
+              {tab.command && <span className={classes('status-dot', statusOf(tab))} />}
+              <span>{tab.title}</span>
+              <button
+                className="terminal-tab-close"
+                title={tab.exitCode === null ? 'Cerrar y matar el proceso' : 'Cerrar'}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  void close(tab.id)
+                }}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+          <button className="terminal-add" title="Nueva terminal" onClick={() => void newShell()}>
+            +
+          </button>
+        </div>
+
+        <div className="terminal-scripts">
+          {Object.entries(scripts).map(([name, command]) => (
+            <button key={name} title={command} onClick={() => void runScript(name)}>
+              ▶ {name}
+            </button>
+          ))}
+        </div>
+
+        {activeTab?.command &&
+          (activeTab.exitCode === null ? (
+            <button onClick={() => void stop(activeTab.id)}>■ Detener</button>
+          ) : (
+            <button onClick={() => void restart(activeTab.id)}>↻ Reiniciar</button>
+          ))}
+        <button className="terminal-hide" title="Ocultar panel (Ctrl+Ñ)" onClick={togglePanel}>
+          ▾
+        </button>
+      </div>
+
+      <div className="terminal-body">
+        {activeTab ? (
+          <TerminalView key={activeTab.id} id={activeTab.id} />
+        ) : (
+          <div className="terminal-empty">Sin terminales. Pulsa + o ejecuta un script.</div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function TerminalView({ id }: { id: number }) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const container = ref.current!
+    const detach = attachInstance(id, container)
+    const observer = new ResizeObserver(() => fitInstance(id))
+    observer.observe(container)
+    return () => {
+      observer.disconnect()
+      detach()
+    }
+  }, [id])
+  return <div ref={ref} className="terminal-view" />
+}

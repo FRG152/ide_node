@@ -32,9 +32,28 @@ export interface ProjectIndex {
   truncated: boolean
 }
 
-export type FilePreview =
-  | { kind: 'text'; size: number; content: string; truncated: boolean }
+export type FileContent =
+  | { kind: 'text'; content: string }
   | { kind: 'binary'; size: number }
+  | { kind: 'too-large'; size: number }
+
+/** Cambios en disco detectados por el watcher, agrupados. */
+export interface FsChanges {
+  rootPath: string
+  /** Rutas creadas, borradas o renombradas: hay que volver a listar su carpeta. */
+  structural: string[]
+  /** Archivos cuyo contenido cambió. */
+  modified: string[]
+}
+
+export interface TerminalCreateOptions {
+  /** Comando a ejecutar; la terminal termina cuando él termina. Sin comando: shell interactiva. */
+  command?: string
+  cols: number
+  rows: number
+}
+
+export type UnsavedChoice = 'save' | 'discard' | 'cancel'
 
 export interface IdeApi {
   /** Carpeta indicada por línea de comandos al arrancar, si la hay. */
@@ -42,10 +61,22 @@ export interface IdeApi {
   openFolder(): Promise<ProjectInfo | null>
   listDir(path: string): Promise<FsEntry[]>
   buildIndex(): Promise<ProjectIndex>
-  readFile(path: string): Promise<FilePreview>
+  readFile(path: string): Promise<FileContent>
+  writeFile(path: string, content: string): Promise<void>
   /** Abre el archivo con la aplicación predeterminada del sistema. Devuelve un mensaje de error o "". */
   openPath(path: string): Promise<string>
   revealPath(path: string): Promise<void>
+  /** Diálogo nativo "¿Guardar cambios?". */
+  confirmUnsaved(paths: string[]): Promise<UnsavedChoice>
+  onFsChanges(listener: (changes: FsChanges) => void): () => void
+
+  terminalCreate(options: TerminalCreateOptions): Promise<number>
+  terminalWrite(id: number, data: string): void
+  terminalResize(id: number, cols: number, rows: number): void
+  /** Mata la terminal y todos sus procesos hijos. */
+  terminalKill(id: number): Promise<void>
+  onTerminalData(listener: (id: number, data: string) => void): () => void
+  onTerminalExit(listener: (id: number, exitCode: number) => void): () => void
 }
 
 export const IPC = {
@@ -54,6 +85,15 @@ export const IPC = {
   listDir: 'fs:list-dir',
   buildIndex: 'fs:build-index',
   readFile: 'fs:read-file',
+  writeFile: 'fs:write-file',
+  fsChanges: 'fs:changes',
   openPath: 'shell:open-path',
-  revealPath: 'shell:reveal-path'
+  revealPath: 'shell:reveal-path',
+  confirmUnsaved: 'ui:confirm-unsaved',
+  terminalCreate: 'terminal:create',
+  terminalWrite: 'terminal:write',
+  terminalResize: 'terminal:resize',
+  terminalKill: 'terminal:kill',
+  terminalData: 'terminal:data',
+  terminalExit: 'terminal:exit'
 } as const

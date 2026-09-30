@@ -1,6 +1,6 @@
 import type { Edge, Node, Rect } from '@xyflow/react'
 import type { FsEntry } from '../../../shared/ipc'
-import { MAX_VISIBLE_CHILDREN } from '../store'
+import { MAX_VISIBLE_CHILDREN } from '../stores/projectStore'
 
 export const NODE_WIDTH = 220
 export const NODE_HEIGHT = 32

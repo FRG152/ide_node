@@ -128,16 +128,28 @@ button:disabled {
   cursor: default !important;
 }
 
-/* ---- Área principal ---- */
+/* ---- Área principal (paneles redimensionables) ---- */
 .workspace {
   flex: 1;
-  display: flex;
   min-height: 0;
 }
 .canvas {
-  flex: 1;
-  min-width: 0;
+  height: 100%;
   position: relative;
+}
+.separator {
+  background: var(--border);
+  transition: background 0.1s;
+}
+.separator-vertical {
+  width: 3px;
+}
+.separator-horizontal {
+  height: 3px;
+}
+.separator:hover,
+.separator[data-separator='active'] {
+  background: var(--accent);
 }
 .welcome {
   height: 100%;
@@ -194,6 +206,10 @@ button:disabled {
 .node-file {
   border-left-width: 4px;
 }
+.node-dirty {
+  color: var(--text);
+  font-size: 11px;
+}
 .node-ext {
   font-size: 11px;
   font-family: Consolas, monospace;
@@ -214,60 +230,188 @@ button:disabled {
   pointer-events: none;
 }
 
-/* ---- Vista previa ---- */
-.preview {
-  width: 40%;
-  min-width: 320px;
+/* ---- Editor ---- */
+.editor-area {
+  height: 100%;
   display: flex;
   flex-direction: column;
   background: var(--bg);
-  border-left: 1px solid var(--border);
 }
-.preview-header {
+.editor-tabs {
+  display: flex;
+  overflow-x: auto;
+  background: var(--bg-panel);
+  min-height: 35px;
+  scrollbar-width: thin;
+}
+.editor-tab {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  background: var(--bg-panel);
+  gap: 6px;
+  padding: 0 6px 0 12px;
+  border-right: 1px solid var(--bg);
+  background: #2d2d2d;
+  color: var(--text-dim);
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+}
+.editor-tab.active {
+  background: var(--bg);
+  color: #fff;
+  border-top: 1px solid var(--accent);
+}
+.editor-tab-close {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  background: transparent;
+  color: var(--text-dim);
+  border-radius: 3px;
+}
+.editor-tab-close::before {
+  content: '×';
+  font-size: 16px;
+  line-height: 20px;
+}
+/* Como VS Code: punto si hay cambios sin guardar, aspa al pasar por encima. */
+.editor-tab.dirty .editor-tab-close::before {
+  content: '●';
+  font-size: 11px;
+}
+.editor-tab-close:hover {
+  background: #444;
+  filter: none;
+}
+.editor-tab.dirty .editor-tab-close:hover::before {
+  content: '×';
+  font-size: 16px;
+}
+.editor-pathbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  font-size: 12px;
+  color: var(--text-dim);
   border-bottom: 1px solid var(--border);
 }
-.preview-title {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  gap: 8px;
-  align-items: baseline;
+.editor-pathbar button {
+  padding: 1px 8px;
+  font-size: 12px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
 }
-.preview-path {
+.editor-path {
+  flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.preview-size {
+.editor-body {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+.code-editor {
+  position: absolute;
+  inset: 0;
+}
+.editor-message {
+  padding: 16px;
   color: var(--text-dim);
+}
+
+/* ---- Terminal ---- */
+.terminal-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+.terminal-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 8px;
+  border-bottom: 1px solid var(--border);
   font-size: 12px;
+}
+.terminal-toolbar button {
+  padding: 2px 8px;
+  font-size: 12px;
+}
+.terminal-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  overflow-x: auto;
+}
+.terminal-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px 2px 10px;
+  border-radius: 3px;
+  color: var(--text-dim);
+  cursor: pointer;
   white-space: nowrap;
 }
-.preview-actions {
+.terminal-tab.active {
+  background: #37373d;
+  color: #fff;
+}
+.terminal-toolbar .terminal-tab-close,
+.terminal-toolbar .terminal-add,
+.terminal-toolbar .terminal-hide {
+  background: transparent;
+  color: var(--text-dim);
+  padding: 0 6px;
+  font-size: 14px;
+}
+.terminal-scripts {
+  flex: 1;
   display: flex;
   gap: 4px;
+  overflow-x: auto;
+  justify-content: flex-end;
 }
-.preview-message {
-  padding: 8px 12px;
-  color: var(--text-dim);
+.terminal-scripts button {
+  background: #2d4a2d;
 }
-.preview-message.error {
-  color: var(--error);
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-dim);
 }
-.preview-code {
+.status-dot.running {
+  background: #3fb950;
+}
+.status-dot.ok {
+  background: #6e7681;
+}
+.status-dot.failed {
+  background: var(--error);
+}
+.terminal-body {
   flex: 1;
-  margin: 0;
-  padding: 10px 12px;
-  overflow: auto;
-  font-family: Consolas, 'Courier New', monospace;
-  font-size: 12px;
-  line-height: 1.5;
-  tab-size: 2;
+  min-height: 0;
+  position: relative;
+}
+.terminal-view,
+.terminal-host {
+  position: absolute;
+  inset: 0;
+}
+.terminal-host {
+  inset: 4px 0 0 8px;
+}
+.terminal-empty {
+  padding: 12px;
+  color: var(--text-dim);
 }
 
 /* ---- Barra de estado ---- */
@@ -290,4 +434,8 @@ button:disabled {
 .statusbar-error button {
   background: transparent;
   padding: 0 2px;
+}
+.graph-container {
+  width: 100%;
+  height: 100%;
 }

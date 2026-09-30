@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { fuzzySearch, type SearchResult } from '../lib/fuzzy'
 import { baseName, parentOf } from '../lib/paths'
-import { useProjectStore } from '../store'
+import { FOCUS_SEARCH_EVENT } from '../lib/shortcuts'
+import { useProjectStore } from '../stores/projectStore'
 
 const MAX_RESULTS = 50
 
@@ -19,17 +20,14 @@ export function SearchBar() {
 
   const results = useMemo(() => fuzzySearch(index, query, MAX_RESULTS), [index, query])
 
-  // Ctrl+P enfoca el buscador, como en VS Code.
+  // Ctrl+P (atajo global) enfoca el buscador, como en VS Code.
   useEffect(() => {
-    const onKeyDown = (e: globalThis.KeyboardEvent): void => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') {
-        e.preventDefault()
-        inputRef.current?.focus()
-        inputRef.current?.select()
-      }
+    const focus = (): void => {
+      inputRef.current?.focus()
+      inputRef.current?.select()
     }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
+    window.addEventListener(FOCUS_SEARCH_EVENT, focus)
+    return () => window.removeEventListener(FOCUS_SEARCH_EVENT, focus)
   }, [])
 
   useEffect(() => {

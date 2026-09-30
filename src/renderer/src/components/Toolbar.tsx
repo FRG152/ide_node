@@ -1,4 +1,5 @@
-import { useProjectStore } from '../store'
+import { useProjectStore } from '../stores/projectStore'
+import { useTerminalStore } from '../stores/terminalStore'
 import { SearchBar } from './SearchBar'
 
 export function Toolbar() {
@@ -6,6 +7,8 @@ export function Toolbar() {
   const openFolder = useProjectStore((s) => s.openFolder)
   const collapseAll = useProjectStore((s) => s.collapseAll)
   const refresh = useProjectStore((s) => s.refresh)
+  const terminalOpen = useTerminalStore((s) => s.panelOpen)
+  const togglePanel = useTerminalStore((s) => s.togglePanel)
 
   return (
     <header className="toolbar">
@@ -21,6 +24,9 @@ export function Toolbar() {
       </button>
       <button onClick={() => void refresh()} disabled={!project}>
         Refrescar
+      </button>
+      <button onClick={togglePanel} disabled={!project} title="Mostrar/ocultar terminal (Ctrl+Ñ)">
+        {terminalOpen ? 'Ocultar terminal' : 'Terminal'}
       </button>
     </header>
   )

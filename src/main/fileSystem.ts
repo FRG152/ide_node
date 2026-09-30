@@ -1,6 +1,6 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
-import type { FilePreview, FsEntry, IndexEntry } from '../shared/ipc'
+import type { FileContent, FsEntry, IndexEntry } from '../shared/ipc'
 
 /** Nunca se muestran. */
 const HIDDEN_DIRS = new Set(['.git', '.svn', '.hg'])
@@ -26,8 +26,18 @@ const HEAVY_DIRS = new Set([
 ])
 
 const MAX_INDEX_ENTRIES = 50_000
-const MAX_PREVIEW_BYTES = 512 * 1024
+const MAX_EDITABLE_BYTES = 5 * 1024 * 1024
 const BINARY_SNIFF_BYTES = 8000
+
+/**
+ * Cambios que el watcher ignora: dentro de carpetas ocultas o pesadas.
+ * La creación/borrado de la carpeta pesada en sí (p. ej. "node_modules") sí cuenta.
+ */
+export function isWatchIgnored(relPath: string): boolean {
+  const parts = relPath.split('/')
+  if (parts.some((p) => HIDDEN_DIRS.has(p))) return true
+  return parts.slice(0, -1).some((p) => HEAVY_DIRS.has(p))
+}
 
 /** Convierte una ruta relativa del renderer en absoluta, rechazando cualquier cosa fuera de la raíz. */
 export function resolveInside(root: string, relPath: string): string {
@@ -121,17 +131,16 @@ function looksBinary(buf: Buffer): boolean {
   return false
 }
 
-export async function readFilePreview(root: string, relPath: string): Promise<FilePreview> {
+export async function readFileContent(root: string, relPath: string): Promise<FileContent> {
   const abs = resolveInside(root, relPath)
-  const handle = await fs.open(abs, 'r')
-  try {
-    const { size } = await handle.stat()
-    const length = Math.min(size, MAX_PREVIEW_BYTES)
-    const buf = Buffer.alloc(length)
-    await handle.read(buf, 0, length, 0)
-    if (looksBinary(buf)) return { kind: 'binary', size }
-    return { kind: 'text', size, content: buf.toString('utf8'), truncated: size > length }
-  } finally {
-    await handle.close()
-  }
+  const { size } = await fs.stat(abs)
+  if (size > MAX_EDITABLE_BYTES) return { kind: 'too-large', size }
+  const buf = await fs.readFile(abs)
+  if (looksBinary(buf)) return { kind: 'binary', size }
+  return { kind: 'text', content: buf.toString('utf8') }
+}
+
+export async function writeFileContent(root: string, relPath: string, content: string): Promise<void> {
+  if (typeof content !== 'string') throw new Error('Contenido inválido')
+  await fs.writeFile(resolveInside(root, relPath), content, 'utf8')
 }

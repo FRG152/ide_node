@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
-import { useProjectStore } from '../store'
+import { useEditorStore } from '../stores/editorStore'
+import { useProjectStore } from '../stores/projectStore'
 
 export function StatusBar() {
   const project = useProjectStore((s) => s.project)
@@ -8,6 +9,7 @@ export function StatusBar() {
   const truncated = useProjectStore((s) => s.indexTruncated)
   const error = useProjectStore((s) => s.error)
   const setError = useProjectStore((s) => s.setError)
+  const unsaved = useEditorStore((s) => Object.keys(s.dirty).length)
 
   const fileCount = useMemo(() => index.filter((e) => e.kind === 'file').length, [index])
 
@@ -20,6 +22,7 @@ export function StatusBar() {
             ? 'Indexando proyecto…'
             : `${fileCount} archivos · ${index.length - fileCount} carpetas${truncated ? ' (índice incompleto)' : ''}`}
       </span>
+      {unsaved > 0 && <span>● {unsaved} sin guardar</span>}
       {error && (
         <span className="statusbar-error">
           {error}
