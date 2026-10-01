@@ -55,6 +55,40 @@ export interface TerminalCreateOptions {
 
 export type UnsavedChoice = 'save' | 'discard' | 'cancel'
 
+/**
+ * Servidor MCP de la app. Ojo: "ide" está reservado en Claude Code (su integración con
+ * VS Code/JetBrains filtra las herramientas de un servidor con ese nombre).
+ */
+export const IDE_MCP_SERVER = 'ide_node'
+/** Así llegan a Claude las herramientas de ese servidor: `mcp__ide_node__open_file`, etc. */
+export const IDE_TOOL_PREFIX = `mcp__${IDE_MCP_SERVER}__`
+
+/**
+ * Acciones que Claude puede hacer en la interfaz (vía el servidor MCP del main).
+ * Rutas relativas a la raíz del proyecto ("" = raíz).
+ */
+export type IdeCommand =
+  | { type: 'expand_folder'; path: string }
+  | { type: 'collapse_folder'; path: string }
+  | { type: 'select_node'; path: string }
+  | { type: 'open_file'; path: string; line?: number }
+  | { type: 'get_view' }
+
+/** Qué hace Claude con un archivo, para resaltarlo en el grafo. */
+export type ClaudeFileAccess = 'read' | 'edit'
+
+/** Eventos de una ejecución de Claude, ya simplificados por el main. */
+export type ClaudeEvent =
+  /** Id de la conversación: se pasa al siguiente mensaje para continuarla. */
+  | { type: 'session'; sessionId: string }
+  /** Trozo de texto de la respuesta, según se genera. */
+  | { type: 'text'; text: string }
+  /** Claude usa una herramienta. `path` es relativo al proyecto si la herramienta toca un archivo de él. */
+  | { type: 'tool'; name: string; detail: string; path: string | null; access: ClaudeFileAccess | null }
+  /** Fin de la ejecución. `denied`: herramientas que intentó usar y no estaban permitidas. */
+  | { type: 'done'; ok: boolean; result: string; durationMs: number; denied: string[] }
+  | { type: 'error'; message: string }
+
 export interface IdeApi {
   /** Carpeta indicada por línea de comandos al arrancar, si la hay. */
   initialProject(): Promise<ProjectInfo | null>
@@ -73,6 +107,18 @@ export interface IdeApi {
   /** Diálogo nativo "¿Guardar cambios?". */
   confirmUnsaved(paths: string[]): Promise<UnsavedChoice>
   onFsChanges(listener: (changes: FsChanges) => void): () => void
+
+  /**
+   * Envía un mensaje a Claude (Claude Code en modo no interactivo). El renderer elige `runId`
+   * para poder reconocer los eventos aunque lleguen antes que la respuesta de esta llamada.
+   */
+  claudeRun(runId: number, prompt: string, sessionId: string | null): Promise<void>
+  claudeCancel(): Promise<void>
+  onClaudeEvent(listener: (runId: number, event: ClaudeEvent) => void): () => void
+
+  /** El main pide al renderer ejecutar una acción de Claude; se responde con `ideCommandResult`. */
+  onIdeCommand(listener: (id: number, command: IdeCommand) => void): () => void
+  ideCommandResult(id: number, ok: boolean, text: string): void
 
   terminalCreate(options: TerminalCreateOptions): Promise<number>
   terminalWrite(id: number, data: string): void
@@ -95,6 +141,11 @@ export const IPC = {
   revealPath: 'shell:reveal-path',
   confirmUnsaved: 'ui:confirm-unsaved',
   flushStorage: 'app:flush-storage',
+  claudeRun: 'claude:run',
+  claudeCancel: 'claude:cancel',
+  claudeEvent: 'claude:event',
+  ideCommand: 'ide:command',
+  ideCommandResult: 'ide:command-result',
   terminalCreate: 'terminal:create',
   terminalWrite: 'terminal:write',
   terminalResize: 'terminal:resize',

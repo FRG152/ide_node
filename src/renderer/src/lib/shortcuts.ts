@@ -48,8 +48,8 @@ export function useGlobalShortcuts(): void {
         if (editor.active) void editor.save(editor.active)
       } else if (key === 'w') {
         if (editor.active) void editor.close(editor.active)
-      } else if (key === 'ñ' || e.code === 'Backquote') {
-        // Ctrl+Ñ en teclado español (como VS Code), Ctrl+` en inglés.
+      } else if (key === 'j') {
+        // Como el "Toggle Panel" de VS Code. También dentro de la terminal (allí sería un salto de línea).
         useTerminalStore.getState().togglePanel()
       } else {
         return

@@ -72,7 +72,7 @@ export function TerminalPanel() {
           ) : (
             <button onClick={() => void restart(activeTab.id)}>↻ Reiniciar</button>
           ))}
-        <button className="terminal-hide" title="Ocultar panel (Ctrl+Ñ)" onClick={togglePanel}>
+        <button className="terminal-hide" title="Ocultar panel (Ctrl+J)" onClick={togglePanel}>
           ▾
         </button>
       </div>

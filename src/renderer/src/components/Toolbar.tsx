@@ -25,7 +25,7 @@ export function Toolbar() {
       <button onClick={() => void refresh()} disabled={!project}>
         Refrescar
       </button>
-      <button onClick={togglePanel} disabled={!project} title="Mostrar/ocultar terminal (Ctrl+Ñ)">
+      <button onClick={togglePanel} disabled={!project} title="Mostrar/ocultar terminal (Ctrl+J)">
         {terminalOpen ? 'Ocultar terminal' : 'Terminal'}
       </button>
     </header>

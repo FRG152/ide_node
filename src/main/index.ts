@@ -2,13 +2,17 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from 'electron'
 import { statSync } from 'node:fs'
 import path from 'node:path'
 import {
+  IDE_MCP_SERVER,
   IPC,
+  type IdeCommand,
   type ProjectIndex,
   type ProjectInfo,
   type TerminalCreateOptions,
   type UnsavedChoice
 } from '../shared/ipc'
+import { ClaudeRunner, IDE_SYSTEM_PROMPT } from './claude'
 import { buildIndex, listDir, readFileContent, resolveInside, writeFileContent } from './fileSystem'
+import { IdeMcpServer } from './ideMcp'
 import { TerminalManager } from './terminals'
 import { ProjectWatcher } from './watcher'
 
@@ -28,14 +32,65 @@ const terminals = new TerminalManager({
 
 const watcher = new ProjectWatcher((changes) => sendToRenderer(IPC.fsChanges, changes))
 
+const ideMcp = new IdeMcpServer(runIdeCommand)
+
+const claude = new ClaudeRunner(
+  (runId, event) => sendToRenderer(IPC.claudeEvent, runId, event),
+  () => [
+    '--mcp-config',
+    ideMcp.mcpConfig(),
+    // Sin esto, las herramientas MCP pedirían permiso y, sin nadie que lo dé, se denegarían.
+    '--allowedTools',
+    `mcp__${IDE_MCP_SERVER}`,
+    '--append-system-prompt',
+    IDE_SYSTEM_PROMPT
+  ]
+)
+
+// --- Acciones de Claude sobre la interfaz: el main las reenvía al renderer y espera respuesta ---
+
+const COMMAND_TIMEOUT_MS = 15_000
+let nextCommandId = 1
+const pendingCommands = new Map<
+  number,
+  { resolve: (text: string) => void; reject: (err: Error) => void; timer: NodeJS.Timeout }
+>()
+
+/** Claude suele usar rutas absolutas o "./x": las pasamos a relativas a la raíz. */
+function toProjectPath(root: string, input: string): string {
+  const cleaned = input.trim()
+  if (cleaned === '' || cleaned === '.' || cleaned === './') return ''
+  const rel = path.relative(root, path.resolve(root, cleaned))
+  if (rel === '..' || rel.startsWith('..' + path.sep) || path.isAbsolute(rel)) {
+    throw new Error(`"${input}" está fuera del proyecto`)
+  }
+  return rel.split(path.sep).join('/')
+}
+
+function runIdeCommand(command: IdeCommand): Promise<string> {
+  const root = requireRoot()
+  const normalized = 'path' in command ? { ...command, path: toProjectPath(root, command.path) } : command
+  if (!mainWindow || mainWindow.isDestroyed()) return Promise.reject(new Error('La ventana de la app no está abierta'))
+  const id = nextCommandId++
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      pendingCommands.delete(id)
+      reject(new Error('La interfaz no respondió a tiempo'))
+    }, COMMAND_TIMEOUT_MS)
+    pendingCommands.set(id, { resolve, reject, timer })
+    sendToRenderer(IPC.ideCommand, id, normalized)
+  })
+}
+
 function requireRoot(): string {
   if (!projectRoot) throw new Error('No hay ningún proyecto abierto')
   return projectRoot
 }
 
 function openProject(rootPath: string): ProjectInfo {
-  // Las terminales pertenecen al proyecto anterior.
+  // Las terminales y la ejecución de Claude pertenecen al proyecto anterior.
   terminals.killAll()
+  claude.cancel()
   projectRoot = rootPath
   watcher.start(rootPath)
   return { rootPath, name: path.basename(rootPath) || rootPath }
@@ -112,6 +167,20 @@ function registerIpc(): void {
 
   ipcMain.on(IPC.flushStorage, (event) => event.sender.session.flushStorageData())
 
+  ipcMain.handle(IPC.claudeRun, (_event, runId: number, prompt: string, sessionId: string | null) => {
+    if (typeof prompt !== 'string' || !prompt.trim()) throw new Error('Mensaje vacío')
+    claude.run(runId, requireRoot(), prompt, typeof sessionId === 'string' ? sessionId : null)
+  })
+  ipcMain.handle(IPC.claudeCancel, () => claude.cancel())
+  ipcMain.on(IPC.ideCommandResult, (_event, id: number, ok: boolean, text: string) => {
+    const pending = pendingCommands.get(id)
+    if (!pending) return
+    clearTimeout(pending.timer)
+    pendingCommands.delete(id)
+    if (ok) pending.resolve(String(text))
+    else pending.reject(new Error(String(text)))
+  })
+
   ipcMain.handle(IPC.terminalCreate, (_event, options: TerminalCreateOptions) =>
     terminals.create(requireRoot(), options)
   )
@@ -156,7 +225,11 @@ function createWindow(): void {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true
+      sandbox: true,
+      // Con la ventana tapada, Chromium congela requestAnimationFrame: los movimientos de cámara
+      // que provocan Claude, los scripts o el watcher se quedarían a medias y se reproducirían
+      // de golpe al volver. La app no tiene animaciones continuas, así que el coste es mínimo.
+      backgroundThrottling: false
     }
   })
   mainWindow = win
@@ -181,6 +254,7 @@ function createWindow(): void {
   win.on('closed', () => {
     mainWindow = null
     terminals.killAll()
+    claude.cancel()
     watcher.stop()
   })
 
@@ -191,9 +265,10 @@ function createWindow(): void {
   }
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   buildMenu()
   registerIpc()
+  await ideMcp.start()
   createWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -202,6 +277,8 @@ app.whenReady().then(() => {
 
 app.on('will-quit', () => {
   terminals.killAll()
+  claude.cancel()
+  ideMcp.stop()
   watcher.stop()
 })
 

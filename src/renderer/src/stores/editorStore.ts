@@ -4,18 +4,25 @@ import { errorMessage } from '../lib/errors'
 import { useProjectStore } from './projectStore'
 
 interface EditorState {
-  /** Archivos abiertos, en orden de pestañas. */
-  tabs: string[]
+  /** Archivo en la ventana central del editor (null: ninguno a la vista). */
   active: string | null
+  /** Archivos minimizados, en el orden en que se minimizaron (lista de la derecha, de arriba abajo). */
+  minimized: string[]
   dirty: Record<string, true>
+  /** Línea a la que llevar el cursor cuando el archivo esté en el editor. */
+  pendingLine: { path: string; line: number } | null
 
   /**
-   * Abre el archivo en una pestaña y mueve la cámara del grafo hacia su nodo:
-   * 'center' lo centra siempre; 'ifHidden' solo si quedó fuera de la vista.
+   * Lleva el archivo a la ventana central (el que estuviera en ella se minimiza) y mueve la
+   * cámara del grafo hacia su nodo: 'center' lo centra siempre; 'ifHidden' solo si no se ve.
    */
   open: (path: string, camera?: 'center' | 'ifHidden') => Promise<void>
-  activate: (path: string) => void
-  /** Cierra la pestaña; si tiene cambios, pregunta. Devuelve false si el usuario canceló. */
+  /** Lleva el cursor a una línea del archivo (cuando esté en la ventana central). */
+  goToLine: (path: string, line: number) => void
+  clearPendingLine: () => void
+  /** Minimiza el archivo de la ventana central a la lista de la derecha. */
+  minimize: () => void
+  /** Cierra el archivo; si tiene cambios, pregunta. Devuelve false si el usuario canceló. */
   close: (path: string) => Promise<boolean>
   save: (path: string) => Promise<boolean>
   saveAll: () => Promise<boolean>
@@ -30,6 +37,11 @@ function reportError(message: string): void {
   useProjectStore.getState().setError(message)
 }
 
+/** Todos los archivos abiertos: el central y los minimizados. */
+export function openPaths(state: Pick<EditorState, 'active' | 'minimized'>): string[] {
+  return state.active ? [state.active, ...state.minimized] : state.minimized
+}
+
 export const useEditorStore = create<EditorState>()((set, get) => {
   function setDirty(path: string, dirty: boolean): void {
     if (Boolean(get().dirty[path]) === dirty) return
@@ -42,23 +54,37 @@ export const useEditorStore = create<EditorState>()((set, get) => {
   }
 
   return {
-    tabs: [],
     active: null,
+    minimized: [],
     dirty: {},
+    pendingLine: null,
 
     async open(path, camera = 'ifHidden') {
       await loadDocument(path, (dirty) => setDirty(path, dirty))
-      set((s) => ({ tabs: s.tabs.includes(path) ? s.tabs : [...s.tabs, path], active: path }))
-      // Después de abrir la pestaña: si es la primera, el grafo se acaba de estrechar
-      // y la cámara ya se calcula con el tamaño final del lienzo.
+      set((s) => {
+        const minimized = s.minimized.filter((p) => p !== path)
+        if (s.active && s.active !== path) minimized.push(s.active)
+        return { active: path, minimized }
+      })
+      // El nodo queda detrás de la ventana central; al minimizarla, aparece ahí mismo.
       const project = useProjectStore.getState()
       if (camera === 'center') project.focus(path)
       else project.ensureVisible(path)
     },
 
-    activate(path) {
-      set({ active: path })
-      useProjectStore.getState().ensureVisible(path)
+    goToLine(path, line) {
+      set({ pendingLine: { path, line } })
+    },
+
+    clearPendingLine() {
+      set({ pendingLine: null })
+    },
+
+    minimize() {
+      const { active } = get()
+      if (!active) return
+      set((s) => ({ active: null, minimized: [...s.minimized, active] }))
+      useProjectStore.getState().ensureVisible(active)
     },
 
     async close(path) {
@@ -69,13 +95,10 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       }
       closeDocument(path)
       setDirty(path, false)
-      set((s) => {
-        const index = s.tabs.indexOf(path)
-        const tabs = s.tabs.filter((p) => p !== path)
-        // Como en VS Code: se activa la pestaña vecina.
-        const active = s.active === path ? (tabs[Math.min(index, tabs.length - 1)] ?? null) : s.active
-        return { tabs, active }
-      })
+      set((s) => ({
+        active: s.active === path ? null : s.active,
+        minimized: s.minimized.filter((p) => p !== path)
+      }))
       return true
     },
 
@@ -105,12 +128,12 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     },
 
     closeAll() {
-      for (const path of get().tabs) closeDocument(path)
-      set({ tabs: [], active: null, dirty: {} })
+      for (const path of openPaths(get())) closeDocument(path)
+      set({ active: null, minimized: [], dirty: {} })
     },
 
     async syncFromDisk(paths) {
-      const open = new Set(get().tabs)
+      const open = new Set(openPaths(get()))
       await Promise.all(
         paths
           .filter((p) => open.has(p))

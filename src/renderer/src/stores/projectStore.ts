@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { FsChanges, FsEntry, IndexEntry, ProjectInfo } from '../../../shared/ipc'
 import { errorMessage } from '../lib/errors'
 import { ancestorsOf, depthOf, parentOf } from '../lib/paths'
+import { useClaudeStore } from './claudeStore'
 import { useEditorStore } from './editorStore'
 import { useTerminalStore } from './terminalStore'
 
@@ -48,8 +49,15 @@ interface ProjectState {
   openFolder: () => Promise<void>
   openInitialProject: () => Promise<void>
   toggleFolder: (path: string) => Promise<void>
-  /** Expande hasta `path`, lo selecciona, centra la cámara y, si es archivo, lo abre en el editor. */
-  reveal: (path: string) => Promise<void>
+  /**
+   * Expande hasta `path`, lo selecciona y centra la cámara. Si es un archivo, por defecto
+   * también lo abre en el editor.
+   */
+  reveal: (path: string, options?: { openFile?: boolean }) => Promise<void>
+  /** Carga los listados hasta `path` (sin expandir nada en la vista) y devuelve su entrada, si existe. */
+  ensureLoaded: (path: string) => Promise<FsEntry | null>
+  /** Expande las carpetas hasta `path` sin cambiar la selección ni mover la cámara. */
+  expandTo: (path: string) => Promise<void>
   select: (path: string | null) => void
   /** Selecciona el nodo y centra la cámara en él. */
   focus: (path: string) => void
@@ -176,6 +184,7 @@ export const useProjectStore = create<ProjectState>()((set, get) => {
   async function loadProject(info: ProjectInfo): Promise<void> {
     useEditorStore.getState().closeAll()
     useTerminalStore.getState().reset()
+    useClaudeStore.getState().newConversation()
     set({
       ...emptyProjectState,
       project: info,
@@ -223,7 +232,7 @@ export const useProjectStore = create<ProjectState>()((set, get) => {
       }
     },
 
-    async reveal(path) {
+    async reveal(path, { openFile = true } = {}) {
       const ancestors = ancestorsOf(path)
       for (const dir of ancestors) {
         if (!(await loadChildren(dir))) return
@@ -237,7 +246,7 @@ export const useProjectStore = create<ProjectState>()((set, get) => {
 
       // Primero el editor: si es la primera pestaña, el grafo se estrecha, y así el
       // centrado de abajo ya se calcula con el tamaño final del lienzo.
-      if (entry.kind === 'file') await useEditorStore.getState().open(path)
+      if (entry.kind === 'file' && openFile) await useEditorStore.getState().open(path)
 
       set((s) => {
         const expanded = { ...s.expanded }
@@ -251,6 +260,30 @@ export const useProjectStore = create<ProjectState>()((set, get) => {
         }
 
         return { expanded, showAll, selected: path, viewRequest: focusRequest(path) }
+      })
+    },
+
+    async ensureLoaded(path) {
+      for (const dir of ancestorsOf(path)) {
+        if (!(await loadChildren(dir))) return null
+      }
+      return get().entries[path] ?? null
+    },
+
+    async expandTo(path) {
+      const ancestors = ancestorsOf(path)
+      for (const dir of ancestors) {
+        if (!(await loadChildren(dir))) return
+      }
+      if (ancestors.every((dir) => get().expanded[dir])) return
+      set((s) => {
+        const expanded = { ...s.expanded }
+        for (const dir of ancestors) expanded[dir] = true
+        const showAll = { ...s.showAll }
+        const parent = parentOf(path)
+        if ((s.children[parent]?.indexOf(path) ?? 0) >= MAX_VISIBLE_CHILDREN) showAll[parent] = true
+        // El layout cambia: que no salte lo que el usuario está mirando.
+        return { expanded, showAll, viewRequest: keepRequest(s.selected ?? '') }
       })
     },
 

@@ -1,9 +1,12 @@
 import { ReactFlowProvider } from '@xyflow/react'
 import { useEffect } from 'react'
 import { Group, Panel, Separator } from 'react-resizable-panels'
+import { ClaudeBar } from './claude/ClaudeBar'
+import './claude/ideCommands' // ejecuta en la interfaz las acciones que pide Claude
 import { StatusBar } from './components/StatusBar'
 import { Toolbar } from './components/Toolbar'
-import { EditorArea } from './editor/EditorArea'
+import { EditorWindow } from './editor/EditorWindow'
+import { MinimizedList } from './editor/MinimizedList'
 import { ProjectGraph } from './graph/ProjectGraph'
 import { useGlobalShortcuts } from './lib/shortcuts'
 import { useEditorStore } from './stores/editorStore'
@@ -14,7 +17,6 @@ import { TerminalPanel } from './terminal/TerminalPanel'
 export function App() {
   const project = useProjectStore((s) => s.project)
   const openFolder = useProjectStore((s) => s.openFolder)
-  const hasTabs = useEditorStore((s) => s.tabs.length > 0)
   const terminalOpen = useTerminalStore((s) => s.panelOpen)
 
   useGlobalShortcuts()
@@ -41,30 +43,24 @@ export function App() {
       <Toolbar />
       <Group orientation="vertical" className="workspace">
         <Panel id="main" minSize={120}>
-          <Group orientation="horizontal">
-            <Panel id="graph" minSize={200}>
-              <section className="canvas">
-                {project ? (
-                  <ReactFlowProvider key={project.rootPath}>
-                    <ProjectGraph />
-                  </ReactFlowProvider>
-                ) : (
-                  <div className="welcome">
-                    <p>Abre una carpeta para ver su estructura como un grafo de nodos.</p>
-                    <button onClick={() => void openFolder()}>Abrir carpeta (Ctrl+O)</button>
-                  </div>
-                )}
-              </section>
-            </Panel>
-            {hasTabs && (
+          {/* El grafo ocupa todo; el editor, los minimizados y Claude flotan encima. */}
+          <section className="canvas">
+            {project ? (
               <>
-                <Separator className="separator separator-vertical" />
-                <Panel id="editor" defaultSize="55" minSize={280}>
-                  <EditorArea />
-                </Panel>
+                <ReactFlowProvider key={project.rootPath}>
+                  <ProjectGraph />
+                </ReactFlowProvider>
+                <MinimizedList />
+                <EditorWindow />
+                <ClaudeBar />
               </>
+            ) : (
+              <div className="welcome">
+                <p>Abre una carpeta para ver su estructura como un grafo de nodos.</p>
+                <button onClick={() => void openFolder()}>Abrir carpeta (Ctrl+O)</button>
+              </div>
             )}
-          </Group>
+          </section>
         </Panel>
         {project && terminalOpen && (
           <>

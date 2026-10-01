@@ -24,6 +24,13 @@ const api: IdeApi = {
   confirmUnsaved: (paths) => ipcRenderer.invoke(IPC.confirmUnsaved, paths),
   onFsChanges: (listener) => subscribe(IPC.fsChanges, listener),
 
+  claudeRun: (runId, prompt, sessionId) => ipcRenderer.invoke(IPC.claudeRun, runId, prompt, sessionId),
+  claudeCancel: () => ipcRenderer.invoke(IPC.claudeCancel),
+  onClaudeEvent: (listener) => subscribe(IPC.claudeEvent, listener),
+
+  onIdeCommand: (listener) => subscribe(IPC.ideCommand, listener),
+  ideCommandResult: (id, ok, text) => ipcRenderer.send(IPC.ideCommandResult, id, ok, text),
+
   terminalCreate: (options) => ipcRenderer.invoke(IPC.terminalCreate, options),
   terminalWrite: (id, data) => ipcRenderer.send(IPC.terminalWrite, id, data),
   terminalResize: (id, cols, rows) => ipcRenderer.send(IPC.terminalResize, id, cols, rows),

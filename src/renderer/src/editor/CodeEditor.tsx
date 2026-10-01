@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { useEditorStore } from '../stores/editorStore'
 import { attachWheelZoom, useZoomStore } from '../stores/zoomStore'
 import { getDocument } from './documents'
 import { monaco } from './monaco'
@@ -52,6 +53,19 @@ export function CodeEditor({ path }: { path: string | null }) {
     }
     shownPath.current = path
   }, [path])
+
+  // Después del efecto anterior (que pone el modelo): ir a la línea pedida (p. ej. por Claude).
+  const pendingLine = useEditorStore((s) => s.pendingLine)
+  useEffect(() => {
+    const editor = editorRef.current
+    const model = editor?.getModel()
+    if (!editor || !model || !pendingLine || pendingLine.path !== path) return
+    const line = Math.min(pendingLine.line, model.getLineCount())
+    editor.setSelection(new monaco.Selection(line, 1, line, model.getLineMaxColumn(line)))
+    editor.revealLineInCenter(line)
+    editor.focus()
+    useEditorStore.getState().clearPendingLine()
+  }, [path, pendingLine])
 
   return <div ref={containerRef} className="code-editor" hidden={path === null} />
 }
