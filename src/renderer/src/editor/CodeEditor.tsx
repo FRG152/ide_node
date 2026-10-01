@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { attachWheelZoom, useZoomStore } from '../stores/zoomStore'
 import { getDocument } from './documents'
 import { monaco } from './monaco'
 
@@ -10,24 +11,31 @@ export function CodeEditor({ path }: { path: string | null }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null)
   const shownPath = useRef<string | null>(null)
+  const fontSize = useZoomStore((s) => s.fontSize.editor)
 
   useEffect(() => {
     const editor = monaco.editor.create(containerRef.current!, {
       model: null,
       theme: 'vs-dark',
       automaticLayout: true,
-      fontSize: 13,
+      fontSize: useZoomStore.getState().fontSize.editor,
       fontFamily: 'Consolas, "Courier New", monospace',
       scrollBeyondLastLine: false,
       fixedOverflowWidgets: true
     })
     editorRef.current = editor
+    const detachWheelZoom = attachWheelZoom(containerRef.current!, 'editor')
     return () => {
+      detachWheelZoom()
       rememberViewState(editor, shownPath.current)
       editor.dispose()
       editorRef.current = null
     }
   }, [])
+
+  useEffect(() => {
+    editorRef.current?.updateOptions({ fontSize })
+  }, [fontSize])
 
   useEffect(() => {
     const editor = editorRef.current

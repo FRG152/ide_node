@@ -19,14 +19,18 @@ npm run typecheck
 | Acción | Resultado |
 | --- | --- |
 | Clic en carpeta | Expande/colapsa (la carpeta se queda fija bajo el cursor) |
-| Clic en archivo | Lo abre en el editor |
+| Clic en archivo | Lo abre en el editor y centra su nodo (zoom mínimo 100%) |
 | `Ctrl+P` | Búsqueda difusa; `Enter` abre el archivo y lo centra en el grafo |
 | `Ctrl+S` / `Ctrl+W` | Guardar / cerrar la pestaña activa |
 | `Ctrl+Ñ` (o `` Ctrl+` ``) | Mostrar/ocultar la terminal |
+| `Ctrl +` / `Ctrl -` / `Ctrl 0` | Zoom de toda la ventana, como en VS Code (pasos de 20%) |
+| `Ctrl` + rueda sobre el editor o la terminal | Tamaño de letra solo de ese panel (sobre el grafo: zoom del grafo) |
 | `Ctrl+O` | Abrir carpeta |
 | Botones `▶ script` | Ejecutan los scripts del `package.json` (detecta npm/pnpm/yarn/bun) |
 | `■ Detener` / `↻ Reiniciar` | Matan el script y todos sus procesos hijos / lo relanzan |
 
+- El zoom y los tamaños de letra se recuerdan entre sesiones; si no están al 100%, aparecen en
+  la barra de estado (clic para restablecer).
 - Los archivos con cambios sin guardar muestran `●` en su pestaña y en su nodo del grafo.
   Cerrar la pestaña, cambiar de proyecto o cerrar la app pide confirmación.
 - La app vigila el disco: los archivos creados/borrados aparecen/desaparecen del grafo, y los

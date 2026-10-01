@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useProjectStore } from '../stores/projectStore'
+import { attachWheelZoom } from '../stores/zoomStore'
 import { useTerminalStore, type TerminalTab } from '../stores/terminalStore'
 import { attachInstance, fitInstance } from './registry'
 import { classes } from '../lib/classes'
@@ -92,10 +93,12 @@ function TerminalView({ id }: { id: number }) {
   useEffect(() => {
     const container = ref.current!
     const detach = attachInstance(id, container)
+    const detachWheelZoom = attachWheelZoom(container, 'terminal')
     const observer = new ResizeObserver(() => fitInstance(id))
     observer.observe(container)
     return () => {
       observer.disconnect()
+      detachWheelZoom()
       detach()
     }
   }, [id])

@@ -424,6 +424,19 @@ button:disabled {
   color: #fff;
   font-size: 12px;
 }
+.statusbar-right {
+  display: flex;
+  gap: 12px;
+  margin-left: auto;
+}
+.statusbar-item {
+  background: transparent;
+  padding: 0 4px;
+  font-size: 12px;
+}
+.statusbar-item:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
 .statusbar-error {
   display: flex;
   align-items: center;

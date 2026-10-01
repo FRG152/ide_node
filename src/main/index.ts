@@ -110,6 +110,8 @@ function registerIpc(): void {
     return (['save', 'discard', 'cancel'] as const)[response] ?? 'cancel'
   })
 
+  ipcMain.on(IPC.flushStorage, (event) => event.sender.session.flushStorageData())
+
   ipcMain.handle(IPC.terminalCreate, (_event, options: TerminalCreateOptions) =>
     terminals.create(requireRoot(), options)
   )
@@ -120,7 +122,10 @@ function registerIpc(): void {
   ipcMain.handle(IPC.terminalKill, (_event, id: number) => terminals.kill(id))
 }
 
-/** Menú mínimo: sin el Ctrl+W por defecto (cerraría la ventana; aquí cierra la pestaña del editor). */
+/**
+ * Menú mínimo: sin el Ctrl+W por defecto (cerraría la ventana; aquí cierra la pestaña del editor)
+ * ni los roles de zoom (Ctrl +/-/0 los gestiona el renderer, que además recuerda el nivel).
+ */
 function buildMenu(): void {
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
@@ -131,10 +136,6 @@ function buildMenu(): void {
         submenu: [
           { role: 'reload' },
           { role: 'toggleDevTools' },
-          { type: 'separator' },
-          { role: 'resetZoom' },
-          { role: 'zoomIn' },
-          { role: 'zoomOut' },
           { type: 'separator' },
           { role: 'togglefullscreen' }
         ]

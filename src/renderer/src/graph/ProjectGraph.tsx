@@ -11,16 +11,20 @@ import {
   type NodeMouseHandler,
   type Viewport
 } from '@xyflow/react'
-import { useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useEditorStore } from '../stores/editorStore'
-import { useProjectStore } from '../stores/projectStore'
-import { buildGraph, NODE_HEIGHT, NODE_WIDTH, nodeIdFor, type GraphNode } from './buildGraph'
+import { useProjectStore, type ViewRequest } from '../stores/projectStore'
+import { buildGraph, NODE_HEIGHT, NODE_WIDTH, nodeIdFor, type GraphNode, type ProjectGraphData } from './buildGraph'
 import { nodeTypes } from './nodes'
 
 const MIN_ZOOM = 0.05
 const MAX_ZOOM = 1.5
 const FOCUS_DURATION_MS = 400
+/** Ventana tras un movimiento de cámara en la que un cambio de tamaño del lienzo lo repite. */
+const REAPPLY_AFTER_RESIZE_MS = 600
+
+type CameraRequest = Exclude<ViewRequest, { kind: 'keep' }>
 
 const onNodeClick: NodeMouseHandler<GraphNode> = (_event, node) => {
   const { toggleFolder, select, showAllChildren } = useProjectStore.getState()
@@ -57,7 +61,7 @@ export function ProjectGraph() {
     [entries, children, expanded, showAll]
   )
 
-  const { getZoom, getViewport, setViewport, getInternalNode } = useReactFlow()
+  const { getViewport, setViewport, getInternalNode } = useReactFlow()
   const containerRef = useRef<HTMLDivElement>(null)
   const handledRequest = useRef(0)
   /** Destino de la última animación de cámara, mientras dura. */
@@ -87,40 +91,70 @@ export function ProjectGraph() {
   }, [graph, setNodes, setEdges, getInternalNode, getViewport, setViewport])
 
   // fit/focus usan las posiciones del layout recién calculado (no el estado local,
-  // que se sincroniza un render más tarde). El tamaño del lienzo se mide en el DOM:
-  // si en este mismo render se abrió el editor o la terminal, React Flow aún no lo
-  // sabe (se entera por un ResizeObserver), así que calculamos el viewport nosotros.
+  // que se sincroniza un render más tarde) y el tamaño del lienzo medido en el DOM.
+  const applyCamera = useCallback(
+    (request: CameraRequest, graph: ProjectGraphData): void => {
+      const width = containerRef.current?.clientWidth ?? 0
+      const height = containerRef.current?.clientHeight ?? 0
+      if (width === 0 || height === 0) return
+
+      if (request.kind === 'fit') {
+        void setViewport(getViewportForBounds(graph.bounds, width, height, MIN_ZOOM, MAX_ZOOM, 0.1), { duration: 300 })
+        return
+      }
+
+      const target = graph.nodes.find((n) => n.id === nodeIdFor(request.path))
+      if (!target) return
+      const { x, y } = target.position
+      // Si la cámara se está moviendo, lo que cuenta es dónde va a acabar.
+      const moving = cameraTarget.current !== null && performance.now() < cameraTarget.current.until
+      const current = moving ? cameraTarget.current!.viewport : getViewport()
+
+      if (request.ifHidden) {
+        const left = x * current.zoom + current.x
+        const top = y * current.zoom + current.y
+        const onScreen =
+          left >= 0 &&
+          top >= 0 &&
+          left + NODE_WIDTH * current.zoom <= width &&
+          top + NODE_HEIGHT * current.zoom <= height
+        if (onScreen) return
+      }
+      const zoom = request.ifHidden ? current.zoom : Math.max(current.zoom, 1)
+      const viewport = { x: width / 2 - (x + NODE_WIDTH / 2) * zoom, y: height / 2 - (y + NODE_HEIGHT / 2) * zoom, zoom }
+      cameraTarget.current = { viewport, until: performance.now() + FOCUS_DURATION_MS }
+      void setViewport(viewport, { duration: FOCUS_DURATION_MS })
+    },
+    [getViewport, setViewport]
+  )
+
+  /** Último movimiento de cámara, por si hay que repetirlo tras un cambio de tamaño. */
+  const lastCamera = useRef<{ request: CameraRequest; graph: ProjectGraphData; at: number } | null>(null)
+
   useEffect(() => {
     if (!viewRequest || viewRequest.kind === 'keep' || viewRequest.id === handledRequest.current) return
     handledRequest.current = viewRequest.id
+    lastCamera.current = { request: viewRequest, graph, at: performance.now() }
+    applyCamera(viewRequest, graph)
+  }, [viewRequest, graph, applyCamera])
 
-    const width = containerRef.current?.clientWidth ?? 0
-    const height = containerRef.current?.clientHeight ?? 0
-    if (width === 0 || height === 0) return
-
-    if (viewRequest.kind === 'fit') {
-      void setViewport(getViewportForBounds(graph.bounds, width, height, MIN_ZOOM, MAX_ZOOM, 0.1), { duration: 300 })
-      return
-    }
-
-    const target = graph.nodes.find((n) => n.id === nodeIdFor(viewRequest.path))
-    if (!target) return
-    const { x, y } = target.position
-    if (viewRequest.ifHidden) {
-      // Si la cámara se está moviendo, lo que cuenta es dónde va a acabar.
-      const moving = cameraTarget.current && performance.now() < cameraTarget.current.until
-      const vp = moving ? cameraTarget.current!.viewport : getViewport()
-      const left = x * vp.zoom + vp.x
-      const top = y * vp.zoom + vp.y
-      const onScreen =
-        left >= 0 && top >= 0 && left + NODE_WIDTH * vp.zoom <= width && top + NODE_HEIGHT * vp.zoom <= height
-      if (onScreen) return
-    }
-    const zoom = viewRequest.ifHidden ? getZoom() : Math.max(getZoom(), 1)
-    const viewport = { x: width / 2 - (x + NODE_WIDTH / 2) * zoom, y: height / 2 - (y + NODE_HEIGHT / 2) * zoom, zoom }
-    cameraTarget.current = { viewport, until: performance.now() + FOCUS_DURATION_MS }
-    void setViewport(viewport, { duration: FOCUS_DURATION_MS })
-  }, [viewRequest, graph, getViewport, setViewport, getZoom])
+  // Si el editor se abre en el mismo render que la petición de cámara, el grupo de paneles
+  // recoloca los tamaños justo después de este efecto: el lienzo encoge y el nodo quedaría
+  // descentrado. Si el tamaño cambia poco después de mover la cámara, repetimos el movimiento.
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    let size = { width: el.clientWidth, height: el.clientHeight }
+    const observer = new ResizeObserver(() => {
+      const next = { width: el.clientWidth, height: el.clientHeight }
+      if (next.width === size.width && next.height === size.height) return
+      size = next
+      const last = lastCamera.current
+      if (last && performance.now() - last.at < REAPPLY_AFTER_RESIZE_MS) applyCamera(last.request, last.graph)
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [applyCamera])
 
   return (
     <div ref={containerRef} className="graph-container">

@@ -66,6 +66,10 @@ export interface IdeApi {
   /** Abre el archivo con la aplicación predeterminada del sistema. Devuelve un mensaje de error o "". */
   openPath(path: string): Promise<string>
   revealPath(path: string): Promise<void>
+  /** Zoom de toda la ventana (nivel de Electron: 0 = 100%, cada paso ×1.2). */
+  setZoomLevel(level: number): void
+  /** Escribe ya a disco el localStorage (Chromium lo hace con retraso y se pierde si el proceso muere). */
+  flushStorage(): void
   /** Diálogo nativo "¿Guardar cambios?". */
   confirmUnsaved(paths: string[]): Promise<UnsavedChoice>
   onFsChanges(listener: (changes: FsChanges) => void): () => void
@@ -90,6 +94,7 @@ export const IPC = {
   openPath: 'shell:open-path',
   revealPath: 'shell:reveal-path',
   confirmUnsaved: 'ui:confirm-unsaved',
+  flushStorage: 'app:flush-storage',
   terminalCreate: 'terminal:create',
   terminalWrite: 'terminal:write',
   terminalResize: 'terminal:resize',

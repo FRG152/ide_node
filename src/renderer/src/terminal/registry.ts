@@ -5,6 +5,7 @@
 import { FitAddon } from '@xterm/addon-fit'
 import { Terminal } from '@xterm/xterm'
 import '@xterm/xterm/css/xterm.css'
+import { useZoomStore } from '../stores/zoomStore'
 
 interface Instance {
   term: Terminal
@@ -19,10 +20,19 @@ const isWindows = navigator.userAgent.includes('Windows')
 
 window.api.onTerminalData((id, data) => instances.get(id)?.term.write(data))
 
+// Cambiar la letra cambia cuántas columnas/filas caben: reajustamos cada terminal (y su pty).
+useZoomStore.subscribe((state, prev) => {
+  if (state.fontSize.terminal === prev.fontSize.terminal) return
+  for (const [id, instance] of instances) {
+    instance.term.options.fontSize = state.fontSize.terminal
+    fitInstance(id)
+  }
+})
+
 export function createInstance(id: number, banner?: string): void {
   const term = new Terminal({
     fontFamily: 'Consolas, "Courier New", monospace',
-    fontSize: 13,
+    fontSize: useZoomStore.getState().fontSize.terminal,
     cursorBlink: true,
     scrollback: 10_000,
     theme: { background: '#1e1e1e', foreground: '#cccccc', cursor: '#cccccc', selectionBackground: '#264f78' },

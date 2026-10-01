@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
+import { contextBridge, ipcRenderer, webFrame, type IpcRendererEvent } from 'electron'
 import { IPC, type IdeApi } from '../shared/ipc'
 
 /** Suscripción a un evento main -> renderer; devuelve la función para desuscribirse. */
@@ -19,6 +19,8 @@ const api: IdeApi = {
   writeFile: (path, content) => ipcRenderer.invoke(IPC.writeFile, path, content),
   openPath: (path) => ipcRenderer.invoke(IPC.openPath, path),
   revealPath: (path) => ipcRenderer.invoke(IPC.revealPath, path),
+  setZoomLevel: (level) => webFrame.setZoomLevel(level),
+  flushStorage: () => ipcRenderer.send(IPC.flushStorage),
   confirmUnsaved: (paths) => ipcRenderer.invoke(IPC.confirmUnsaved, paths),
   onFsChanges: (listener) => subscribe(IPC.fsChanges, listener),
 
