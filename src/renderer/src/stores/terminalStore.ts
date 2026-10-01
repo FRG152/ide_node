@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { t } from '../i18n'
 import { errorMessage } from '../lib/errors'
 import { createInstance, disposeInstance, writeToInstance } from '../terminal/registry'
 import { useProjectStore } from './projectStore'
@@ -55,7 +56,7 @@ export const useTerminalStore = create<TerminalState>()((set, get) => {
     try {
       id = await window.api.terminalCreate({ command: command ?? undefined, ...INITIAL_SIZE })
     } catch (err) {
-      useProjectStore.getState().setError(`No se pudo abrir la terminal: ${errorMessage(err)}`)
+      useProjectStore.getState().setError(t('terminal.openFailed', { message: errorMessage(err) }))
       return
     }
     createInstance(id, command ? `\x1b[90m> ${command}\x1b[0m\r\n\r\n` : undefined)
@@ -74,7 +75,7 @@ export const useTerminalStore = create<TerminalState>()((set, get) => {
 
     async newShell() {
       shellCount++
-      await spawn(`Terminal ${shellCount}`, null, null)
+      await spawn(t('terminal.name', { n: shellCount }), null, null)
     },
 
     async runScript(name) {
@@ -135,6 +136,6 @@ export const useTerminalStore = create<TerminalState>()((set, get) => {
 
 window.api.onTerminalExit((id, exitCode) => {
   if (!useTerminalStore.getState().tabs.some((t) => t.id === id)) return
-  writeToInstance(id, `\r\n\x1b[90m[Proceso terminado con código ${exitCode}]\x1b[0m\r\n`)
+  writeToInstance(id, `\r\n\x1b[90m${t('terminal.exited', { code: exitCode })}\x1b[0m\r\n`)
   useTerminalStore.setState((s) => ({ tabs: s.tabs.map((t) => (t.id === id ? { ...t, exitCode } : t)) }))
 })

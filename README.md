@@ -1,8 +1,9 @@
 # IDE Node
 
-Entorno de desarrollo de escritorio centrado en un grafo: la estructura del proyecto se muestra
-como nodos interactivos (React Flow), con editor de código (Monaco), terminal integrada
-(xterm.js + node-pty) y Claude integrado, para trabajar y levantar el proyecto sin salir de la app.
+IDE de escritorio centrado en Claude: la estructura del proyecto se muestra como un grafo de nodos
+interactivo (React Flow), con Claude integrado, editor de código (Monaco) y terminal (xterm.js +
+node-pty) para trabajar y levantar el proyecto sin salir de la app. Interfaz en inglés por defecto
+(español disponible en la barra de estado) y tema con la paleta de Claude Code.
 
 ## Comandos
 
@@ -23,6 +24,8 @@ npm run typecheck
 | `Esc` en el editor / botón `—` | Minimiza: el archivo pasa a la lista de la derecha (de arriba abajo) |
 | Clic en la lista de la derecha | Vuelve a la ventana central (la que hubiera se minimiza) |
 | Input de abajo | Pídele algo a Claude (`Enter` envía, `Shift+Enter` nueva línea) |
+| `Ctrl+I` | Despliega y enfoca el input de Claude |
+| `Esc` en el input de Claude | Interrumpe a Claude si está trabajando; si no, minimiza el input |
 | `Ctrl+P` | Búsqueda difusa; `Enter` abre el archivo y lo centra en el grafo |
 | `Ctrl+S` / `Ctrl+W` | Guardar / cerrar el archivo de la ventana central |
 | `Ctrl+J` | Mostrar/ocultar la terminal |
@@ -36,6 +39,11 @@ npm run typecheck
   y editar archivos del proyecto; ejecutar comandos está desactivado (se deniega y se avisa). Los
   archivos que lee se resaltan en azul en el grafo y los que edita en morado; las carpetas cerradas
   con archivos tocados muestran un punto. Cada mensaje continúa la conversación (`⟲` empieza otra).
+- **Arriba a la izquierda**, el estado de Claude: modelo, contexto en uso / ventana del modelo,
+  tokens de la conversación (desglose y coste estimado en el tooltip) y límites del plan (ventana
+  de 5 horas y semanal, en ámbar a partir del 80%). Datos que da el propio Claude Code.
+- Minimizado, el input queda como una píldora que **sigue indicando que Claude trabaja** (con el
+  tiempo transcurrido) y avisa cuando termina.
 - **Claude maneja la interfaz**: si le pides abrir, mostrar o buscar algo, recorre el grafo a la
   vista (expande carpetas desde la raíz, selecciona y abre el archivo, incluso en una línea). Lo
   hace con un servidor MCP local de la app (`src/main/ideMcp.ts`, herramientas

@@ -43,7 +43,7 @@ const onNodeClick: NodeMouseHandler<GraphNode> = (_event, node) => {
 }
 
 const minimapColor = (node: GraphNode): string =>
-  node.type === 'folder' ? '#c5a15a' : node.type === 'more' ? '#555' : '#4a7ab8'
+  node.type === 'folder' ? '#d77757' : node.type === 'more' ? '#3d3d3a' : '#6b6a65'
 
 export function ProjectGraph() {
   const { entries, children, expanded, showAll, viewRequest } = useProjectStore(

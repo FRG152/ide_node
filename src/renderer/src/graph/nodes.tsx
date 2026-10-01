@@ -6,6 +6,7 @@ import { useClaudeStore } from '../stores/claudeStore'
 import { useEditorStore } from '../stores/editorStore'
 import { useProjectStore } from '../stores/projectStore'
 import type { FileFlowNode, FolderFlowNode, MoreFlowNode } from './buildGraph'
+import { useT } from '../i18n'
 import { classes } from '../lib/classes'
 
 /** Acceso más fuerte de Claude a algún archivo dentro de `folder` ('edit' gana a 'read'). */
@@ -34,6 +35,7 @@ export const FolderNode = memo(function FolderNode({ data }: NodeProps<FolderFlo
   const selected = useProjectStore((s) => s.selected === data.path)
   // Con la carpeta abierta ya se ven sus archivos; cerrada, avisamos de que Claude tocó algo dentro.
   const claudeInside = useClaudeStore((s) => (data.expanded ? null : touchedInside(s.touched, data.path)))
+  const t = useT()
   return (
     <div
       className={classes(
@@ -49,7 +51,7 @@ export const FolderNode = memo(function FolderNode({ data }: NodeProps<FolderFlo
       <span className="node-chevron">{data.expanded ? '▾' : '▸'}</span>
       <span className="node-name">{data.name}</span>
       {claudeInside && (
-        <span className={`node-claude-dot ${claudeInside}`} title="Claude ha tocado archivos de esta carpeta">
+        <span className={`node-claude-dot ${claudeInside}`} title={t('node.claudeInside')}>
           ●
         </span>
       )}
@@ -62,6 +64,7 @@ export const FileNode = memo(function FileNode({ data }: NodeProps<FileFlowNode>
   const selected = useProjectStore((s) => s.selected === data.path)
   const dirty = useEditorStore((s) => s.dirty[data.path] === true)
   const claude = useClaudeStore((s) => s.touched[data.path])
+  const t = useT()
   const color = colorForFile(data.name)
   return (
     <div
@@ -71,7 +74,7 @@ export const FileNode = memo(function FileNode({ data }: NodeProps<FileFlowNode>
     >
       <Handles source={false} />
       <span className="node-name">{data.name}</span>
-      {dirty && <span className="node-dirty" title="Cambios sin guardar">●</span>}
+      {dirty && <span className="node-dirty" title={t('editor.unsaved')}>●</span>}
       <span className="node-ext" style={{ color }}>
         {extensionOf(data.name)}
       </span>
@@ -80,10 +83,11 @@ export const FileNode = memo(function FileNode({ data }: NodeProps<FileFlowNode>
 })
 
 export const MoreNode = memo(function MoreNode({ data }: NodeProps<MoreFlowNode>) {
+  const t = useT()
   return (
-    <div className="node node-more" title="Mostrar todos los elementos de esta carpeta">
+    <div className="node node-more" title={t('node.moreTitle')}>
       <Handles source={false} />
-      <span className="node-name">+{data.hidden} más…</span>
+      <span className="node-name">{t('node.more', { count: data.hidden })}</span>
     </div>
   )
 })

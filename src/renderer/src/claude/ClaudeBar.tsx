@@ -1,51 +1,65 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { IDE_TOOL_PREFIX } from '../../../shared/ipc'
+import { isMessageKey, t, useT } from '../i18n'
 import { classes } from '../lib/classes'
-import { useClaudeStore, type ClaudeEntry } from '../stores/claudeStore'
+import { FOCUS_CLAUDE_EVENT, useClaudeStore, type ClaudeEntry } from '../stores/claudeStore'
 import { useProjectStore } from '../stores/projectStore'
+import { formatElapsed, Spinner, useElapsedSeconds } from './Spinner'
 
 const MAX_INPUT_HEIGHT = 160
 
-/** Nombre legible de cada herramienta de Claude Code. */
-const TOOL_LABELS: Record<string, string> = {
-  Read: 'Lee',
-  Edit: 'Edita',
-  Write: 'Escribe',
-  NotebookEdit: 'Edita',
-  Grep: 'Busca',
-  Glob: 'Busca archivos',
-  Bash: 'Ejecuta',
-  PowerShell: 'Ejecuta',
-  WebFetch: 'Consulta',
-  WebSearch: 'Busca en la web',
-  Task: 'Subagente',
-  Agent: 'Subagente',
-  TodoWrite: 'Planifica',
-  // Herramientas de la interfaz (servidor MCP de la app)
-  [`${IDE_TOOL_PREFIX}expand_folder`]: 'Abre carpeta',
-  [`${IDE_TOOL_PREFIX}collapse_folder`]: 'Cierra carpeta',
-  [`${IDE_TOOL_PREFIX}select_node`]: 'Selecciona',
-  [`${IDE_TOOL_PREFIX}open_file`]: 'Abre',
-  [`${IDE_TOOL_PREFIX}get_view`]: 'Mira tu vista'
+/** Nombre legible de una herramienta de Claude Code (o de las de la interfaz, mcp__ide_node__*). */
+function toolLabel(name: string): string {
+  const short = name.startsWith(IDE_TOOL_PREFIX) ? name.slice(IDE_TOOL_PREFIX.length) : name
+  const key = `tool.${short}`
+  return isMessageKey(key) ? t(key) : name
 }
 
 /** Input flotante abajo en el centro para hablar con Claude, con la conversación encima. */
 export function ClaudeBar() {
-  const { entries, running, transcriptOpen, send, cancel, newConversation, toggleTranscript } = useClaudeStore(
+  const t = useT()
+  const {
+    entries,
+    running,
+    runStartedAt,
+    transcriptOpen,
+    barCollapsed,
+    unseenResult,
+    send,
+    cancel,
+    newConversation,
+    toggleTranscript,
+    collapseBar,
+    expandBar
+  } = useClaudeStore(
     useShallow((s) => ({
       entries: s.entries,
       running: s.running,
+      runStartedAt: s.runStartedAt,
       transcriptOpen: s.transcriptOpen,
+      barCollapsed: s.barCollapsed,
+      unseenResult: s.unseenResult,
       send: s.send,
       cancel: s.cancel,
       newConversation: s.newConversation,
-      toggleTranscript: s.toggleTranscript
+      toggleTranscript: s.toggleTranscript,
+      collapseBar: s.collapseBar,
+      expandBar: s.expandBar
     }))
   )
   const [draft, setDraft] = useState('')
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const transcriptRef = useRef<HTMLDivElement>(null)
+
+  // Ctrl+I o clic en la píldora: enfocar el input (tras montarse, si estaba minimizado).
+  useEffect(() => {
+    const focus = (): void => {
+      requestAnimationFrame(() => inputRef.current?.focus())
+    }
+    window.addEventListener(FOCUS_CLAUDE_EVENT, focus)
+    return () => window.removeEventListener(FOCUS_CLAUDE_EVENT, focus)
+  }, [])
 
   // El textarea crece con el texto hasta un máximo.
   useLayoutEffect(() => {
@@ -53,13 +67,17 @@ export function ClaudeBar() {
     if (!el) return
     el.style.height = 'auto'
     el.style.height = `${Math.min(el.scrollHeight, MAX_INPUT_HEIGHT)}px`
-  }, [draft])
+  }, [draft, barCollapsed])
 
   // Seguir el final de la conversación según llega la respuesta.
   useEffect(() => {
     const el = transcriptRef.current
     if (el) el.scrollTop = el.scrollHeight
-  }, [entries, transcriptOpen])
+  }, [entries, transcriptOpen, barCollapsed])
+
+  if (barCollapsed) {
+    return <ClaudePill running={running} startedAt={runStartedAt} unseen={unseenResult} onOpen={expandBar} />
+  }
 
   const submit = (): void => {
     if (!draft.trim() || running) return
@@ -71,6 +89,11 @@ export function ClaudeBar() {
     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault()
       submit()
+    } else if (e.key === 'Escape') {
+      // Como en Claude Code: Esc interrumpe. Sin nada en marcha, minimiza el input.
+      e.preventDefault()
+      if (running) void cancel()
+      else collapseBar()
     }
   }
 
@@ -83,15 +106,15 @@ export function ClaudeBar() {
           {entries.map((entry, i) => (
             <Entry key={i} entry={entry} />
           ))}
-          {running && <div className="claude-working">Claude está trabajando…</div>}
         </div>
       )}
+      {running && <WorkingLine startedAt={runStartedAt} />}
       <div className="claude-input-row">
         {hasConversation && (
           <button
             className="claude-icon"
             onClick={toggleTranscript}
-            title={transcriptOpen ? 'Ocultar conversación' : 'Mostrar conversación'}
+            title={transcriptOpen ? t('claude.hideTranscript') : t('claude.showTranscript')}
           >
             {transcriptOpen ? '▾' : '▴'}
           </button>
@@ -100,31 +123,72 @@ export function ClaudeBar() {
           ref={inputRef}
           rows={1}
           value={draft}
-          placeholder="Pídele algo a Claude…   (Enter envía · Shift+Enter, nueva línea)"
+          placeholder={t('claude.placeholder')}
           spellCheck={false}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={onKeyDown}
         />
         {running ? (
           <button className="claude-stop" onClick={() => void cancel()}>
-            ■ Detener
+            {t('claude.stop')}
           </button>
         ) : (
-          <button onClick={submit} disabled={!draft.trim()}>
-            Enviar
+          <button className="primary" onClick={submit} disabled={!draft.trim()}>
+            {t('claude.send')}
           </button>
         )}
         {hasConversation && !running && (
-          <button className="claude-icon" onClick={newConversation} title="Nueva conversación">
+          <button className="claude-icon" onClick={newConversation} title={t('claude.newConversation')}>
             ⟲
           </button>
         )}
+        <button className="claude-icon" onClick={collapseBar} title={t('claude.minimize')}>
+          —
+        </button>
       </div>
     </div>
   )
 }
 
+/** "✻ Working… 12s · esc to interrupt": visible aunque la conversación esté plegada. */
+function WorkingLine({ startedAt }: { startedAt: number | null }) {
+  const t = useT()
+  const elapsed = useElapsedSeconds(startedAt)
+  return (
+    <div className="claude-working">
+      <Spinner />
+      <span className="claude-working-label">{t('claude.working')}</span>
+      <span className="claude-working-meta">
+        {formatElapsed(elapsed)} · {t('claude.escToInterrupt')}
+      </span>
+    </div>
+  )
+}
+
+/** El input minimizado: sigue diciendo si Claude trabaja y avisa cuando termina. */
+function ClaudePill(props: { running: boolean; startedAt: number | null; unseen: boolean; onOpen: () => void }) {
+  const t = useT()
+  const elapsed = useElapsedSeconds(props.running ? props.startedAt : null)
+  return (
+    <button
+      className={classes('claude-pill', props.running && 'running', props.unseen && 'unseen')}
+      onClick={props.onOpen}
+      title={t('claude.ask')}
+    >
+      {props.running ? <Spinner /> : <span className="claude-glyph">✻</span>}
+      <span>
+        {props.running
+          ? `${t('claude.working')} ${formatElapsed(elapsed)}`
+          : props.unseen
+            ? t('claude.finished')
+            : t('claude.ask')}
+      </span>
+    </button>
+  )
+}
+
 function Entry({ entry }: { entry: ClaudeEntry }) {
+  const t = useT()
   switch (entry.kind) {
     case 'user':
       return <div className="claude-entry claude-user">{entry.text}</div>
@@ -134,14 +198,21 @@ function Entry({ entry }: { entry: ClaudeEntry }) {
       return <div className={classes('claude-entry', 'claude-info', entry.error && 'error')}>{entry.text}</div>
     case 'tool': {
       const { path } = entry
+      const isUiTool = entry.name.startsWith(IDE_TOOL_PREFIX)
       return (
         <div
-          className={classes('claude-entry', 'claude-tool', entry.access && `claude-tool-${entry.access}`, !!path && 'link')}
-          title={path ? 'Abrir y mostrar en el grafo' : undefined}
-          onClick={path ? () => void useProjectStore.getState().reveal(path) : undefined}
+          className={classes(
+            'claude-entry',
+            'claude-tool',
+            entry.access && `claude-tool-${entry.access}`,
+            isUiTool && 'claude-tool-ui',
+            path !== null && 'link'
+          )}
+          title={path !== null ? t('claude.toolLinkTitle') : undefined}
+          onClick={path !== null ? () => void useProjectStore.getState().reveal(path) : undefined}
         >
-          <span className="claude-tool-name">{TOOL_LABELS[entry.name] ?? entry.name}</span>
-          <span className="claude-tool-detail">{entry.detail}</span>
+          <span className="claude-tool-name">{toolLabel(entry.name)}</span>
+          <span className="claude-tool-detail">{entry.detail || (isUiTool ? t('tool.root') : '')}</span>
         </div>
       )
     }

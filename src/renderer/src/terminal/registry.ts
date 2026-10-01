@@ -15,6 +15,34 @@ interface Instance {
   opened: boolean
 }
 
+/** Paleta de Claude Code (ver styles.css). */
+const CLAUDE_TERMINAL_THEME = {
+  background: '#1f1e1d',
+  foreground: '#f5f4ef',
+  cursor: '#d77757',
+  cursorAccent: '#1f1e1d',
+  selectionBackground: 'rgba(215, 119, 87, 0.35)',
+  black: '#1f1e1d',
+  red: '#ff6b80',
+  green: '#4eba65',
+  yellow: '#ffc107',
+  blue: '#4782c8',
+  magenta: '#af87ff',
+  cyan: '#48968c',
+  white: '#c2c0b6',
+  brightBlack: '#6b6a65',
+  brightRed: '#ff8a9a',
+  brightGreen: '#6fd486',
+  brightYellow: '#ffd54f',
+  brightBlue: '#b1b9f9',
+  brightMagenta: '#c9a8ff',
+  brightCyan: '#6fb8ad',
+  brightWhite: '#f5f4ef',
+  scrollbarSliderBackground: 'rgba(215, 119, 87, 0.22)',
+  scrollbarSliderHoverBackground: 'rgba(235, 159, 127, 0.7)',
+  scrollbarSliderActiveBackground: '#d77757'
+}
+
 const instances = new Map<number, Instance>()
 const isWindows = navigator.userAgent.includes('Windows')
 
@@ -35,7 +63,7 @@ export function createInstance(id: number, banner?: string): void {
     fontSize: useZoomStore.getState().fontSize.terminal,
     cursorBlink: true,
     scrollback: 10_000,
-    theme: { background: '#1e1e1e', foreground: '#cccccc', cursor: '#cccccc', selectionBackground: '#264f78' },
+    theme: CLAUDE_TERMINAL_THEME,
     windowsPty: isWindows ? { backend: 'conpty' } : undefined
   })
   const fit = new FitAddon()

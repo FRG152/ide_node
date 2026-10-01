@@ -1,7 +1,8 @@
 import { execFile, spawn, type ChildProcess } from 'node:child_process'
 import path from 'node:path'
 import readline from 'node:readline'
-import { IDE_TOOL_PREFIX, type ClaudeEvent, type ClaudeFileAccess } from '../shared/ipc'
+import { IDE_TOOL_PREFIX, type ClaudeEvent, type ClaudeFileAccess, type UsageWindow } from '../shared/ipc'
+import { t } from './i18n'
 
 /**
  * Claude Code en modo no interactivo (`claude -p`): usa la instalación y la cuenta del
@@ -39,11 +40,12 @@ const SESSION_ENV = [
   'CLAUDE_EFFORT'
 ]
 
-/** Instrucciones añadidas al prompt de sistema de Claude Code. */
-export const IDE_SYSTEM_PROMPT = `Estás integrado en IDE Node, un editor de código cuyo explorador de archivos es un grafo de nodos que el usuario ve en pantalla mientras hablas con él.
-Con las herramientas ${IDE_TOOL_PREFIX}* manejas esa vista: expand_folder (expande una carpeta, la centra y te devuelve su contenido), collapse_folder, select_node, open_file (abre un archivo en el editor del usuario, opcionalmente en una línea) y get_view (qué está viendo el usuario ahora).
-Cuando el usuario te pida abrir, mostrar, buscar o enseñarle un archivo o carpeta, hazlo con esas herramientas para que vea el recorrido en el grafo: ve expandiendo carpetas desde la raíz hasta llegar y termina con open_file (archivos) o select_node (carpetas). Si no sabes dónde está, puedes localizarlo antes con Glob o Grep y luego recorrer el camino con expand_folder.
-Si el usuario habla de "este archivo" o de lo que tiene abierto, usa get_view.`
+/** Instrucciones añadidas al prompt de sistema de Claude Code (en inglés: las lee el modelo). */
+export const IDE_SYSTEM_PROMPT = `You are running inside IDE Node, a Claude-focused code editor whose file explorer is a graph of nodes that the user sees on screen while talking to you.
+The ${IDE_TOOL_PREFIX}* tools control that view: expand_folder (expands a folder, centers it and returns its contents), collapse_folder, select_node, open_file (opens a file in the user's editor, optionally at a line) and get_view (what the user is looking at right now).
+When the user asks you to open, show, find or point out a file or folder, use those tools so they can follow the path in the graph: expand folders from the root down to the target and finish with open_file (files) or select_node (folders). If you don't know where it is, locate it first with Glob or Grep, then walk the path with expand_folder.
+If the user refers to "this file" or to what they have open, call get_view.
+Reply in the language the user writes in.`
 
 const READ_TOOLS = new Set(['Read'])
 const EDIT_TOOLS = new Set(['Edit', 'Write', 'NotebookEdit'])
@@ -87,7 +89,7 @@ export class ClaudeRunner {
         type: 'error',
         message:
           err.code === 'ENOENT'
-            ? 'No se encontró el comando "claude". Instala Claude Code y vuelve a abrir la app.'
+            ? t('claude.notFound')
             : err.message
       })
     })
@@ -97,8 +99,8 @@ export class ClaudeRunner {
       emit({
         type: 'error',
         message: this.cancelled.has(proc)
-          ? 'Detenido.'
-          : stderr.trim() || `Claude terminó sin respuesta (código ${code}).`
+          ? t('claude.stopped')
+          : stderr.trim() || t('claude.noResponse', { code: String(code) })
       })
     })
 
@@ -141,16 +143,32 @@ function translate(message: Record<string, unknown>, root: string): ClaudeEvent[
   switch (message.type) {
     case 'system':
       return message.subtype === 'init' && typeof message.session_id === 'string'
-        ? [{ type: 'session', sessionId: message.session_id }]
+        ? [{ type: 'session', sessionId: message.session_id, model: typeof message.model === 'string' ? message.model : null }]
         : []
 
     case 'stream_event': {
-      // Solo el texto del agente principal; el de los subagentes no es la respuesta.
+      // Solo el agente principal: el texto de los subagentes no es la respuesta, y su
+      // contexto es otro.
       if (message.parent_tool_use_id) return []
-      const event = message.event as { type?: string; delta?: { type?: string; text?: string } }
+      const event = message.event as {
+        type?: string
+        delta?: { type?: string; text?: string }
+        message?: { usage?: Record<string, unknown> }
+      }
+      if (event.type === 'message_start' && event.message?.usage) {
+        // Lo que ocupa el contexto en esta llamada: la entrada completa, cacheada o no.
+        const usage = event.message.usage
+        return [{ type: 'context', tokens: num(usage.input_tokens) + num(usage.cache_creation_input_tokens) + num(usage.cache_read_input_tokens) }]
+      }
       return event.type === 'content_block_delta' && event.delta?.type === 'text_delta' && event.delta.text
         ? [{ type: 'text', text: event.delta.text }]
         : []
+    }
+
+    case 'rate_limit_event': {
+      const windows = (message.rate_limit_info as { unifiedWindows?: Record<string, unknown> } | undefined)?.unifiedWindows
+      if (!windows) return []
+      return [{ type: 'limits', fiveHour: usageWindow(windows.five_hour), sevenDay: usageWindow(windows.seven_day) }]
     }
 
     case 'assistant': {
@@ -162,7 +180,21 @@ function translate(message: Record<string, unknown>, root: string): ClaudeEvent[
 
     case 'result': {
       const denials = Array.isArray(message.permission_denials) ? message.permission_denials : []
+      const usage = (message.usage ?? {}) as Record<string, unknown>
+      const models = Object.values((message.modelUsage ?? {}) as Record<string, { contextWindow?: unknown }>)
+      const contextWindow = models.map((m) => num(m.contextWindow)).find((n) => n > 0) ?? null
       return [
+        {
+          type: 'usage',
+          usage: {
+            inputTokens: num(usage.input_tokens),
+            cacheReadTokens: num(usage.cache_read_input_tokens),
+            cacheWriteTokens: num(usage.cache_creation_input_tokens),
+            outputTokens: num(usage.output_tokens),
+            costUsd: num(message.total_cost_usd)
+          },
+          contextWindow
+        },
         {
           type: 'done',
           ok: message.subtype === 'success' && message.is_error !== true,
@@ -187,7 +219,8 @@ function describeTool({ name, input }: ToolUse, root: string): ClaudeEvent {
   const access: ClaudeFileAccess | null = READ_TOOLS.has(name) ? 'read' : EDIT_TOOLS.has(name) ? 'edit' : null
 
   let detail = ''
-  if (filePath !== null) detail = relative ?? (filePath.trim() === '' || filePath === '.' ? '(raíz)' : filePath)
+  // La raíz llega como detalle vacío: el renderer la muestra traducida.
+  if (filePath !== null) detail = relative ?? (filePath.trim() === '' || filePath === '.' ? '' : filePath)
   else if (name === 'Bash' || name === 'PowerShell') detail = stringField(input, 'command') ?? ''
   else if (name === 'Grep' || name === 'Glob') detail = stringField(input, 'pattern') ?? ''
   else if (name === 'WebFetch') detail = stringField(input, 'url') ?? ''
@@ -202,6 +235,15 @@ function describeDenial(denial: Record<string, unknown>): string {
   const input = (denial.tool_input ?? {}) as Record<string, unknown>
   const command = stringField(input, 'command')
   return command ? `${name}: ${command}` : name
+}
+
+function num(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0
+}
+
+function usageWindow(value: unknown): UsageWindow | null {
+  const w = value as { utilization?: unknown; resetsAt?: unknown } | undefined
+  return w && typeof w.utilization === 'number' ? { utilization: w.utilization, resetsAt: num(w.resetsAt) } : null
 }
 
 function stringField(record: Record<string, unknown>, key: string): string | null {

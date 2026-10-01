@@ -1,6 +1,7 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import type { FileContent, FsEntry, IndexEntry } from '../shared/ipc'
+import { t } from './i18n'
 
 /** Nunca se muestran. */
 const HIDDEN_DIRS = new Set(['.git', '.svn', '.hg'])
@@ -41,11 +42,11 @@ export function isWatchIgnored(relPath: string): boolean {
 
 /** Convierte una ruta relativa del renderer en absoluta, rechazando cualquier cosa fuera de la raíz. */
 export function resolveInside(root: string, relPath: string): string {
-  if (typeof relPath !== 'string') throw new Error('Ruta inválida')
+  if (typeof relPath !== 'string') throw new Error(t('error.invalidPath'))
   const abs = path.resolve(root, relPath)
   const rel = path.relative(root, abs)
   if (rel === '..' || rel.startsWith('..' + path.sep) || path.isAbsolute(rel)) {
-    throw new Error(`Ruta fuera del proyecto: ${relPath}`)
+    throw new Error(t('error.outsideProject', { path: relPath }))
   }
   return abs
 }
@@ -141,6 +142,6 @@ export async function readFileContent(root: string, relPath: string): Promise<Fi
 }
 
 export async function writeFileContent(root: string, relPath: string, content: string): Promise<void> {
-  if (typeof content !== 'string') throw new Error('Contenido inválido')
+  if (typeof content !== 'string') throw new Error(t('error.invalidContent'))
   await fs.writeFile(resolveInside(root, relPath), content, 'utf8')
 }

@@ -19,6 +19,7 @@ const api: IdeApi = {
   writeFile: (path, content) => ipcRenderer.invoke(IPC.writeFile, path, content),
   openPath: (path) => ipcRenderer.invoke(IPC.openPath, path),
   revealPath: (path) => ipcRenderer.invoke(IPC.revealPath, path),
+  setLanguage: (language) => ipcRenderer.send(IPC.setLanguage, language),
   setZoomLevel: (level) => webFrame.setZoomLevel(level),
   flushStorage: () => ipcRenderer.send(IPC.flushStorage),
   confirmUnsaved: (paths) => ipcRenderer.invoke(IPC.confirmUnsaved, paths),

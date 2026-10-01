@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { useT } from '../i18n'
 import { fuzzySearch, type SearchResult } from '../lib/fuzzy'
 import { baseName, parentOf } from '../lib/paths'
 import { FOCUS_SEARCH_EVENT } from '../lib/shortcuts'
@@ -7,6 +8,7 @@ import { useProjectStore } from '../stores/projectStore'
 const MAX_RESULTS = 50
 
 export function SearchBar() {
+  const t = useT()
   const index = useProjectStore((s) => s.index)
   const indexing = useProjectStore((s) => s.indexing)
   const hasProject = useProjectStore((s) => s.project !== null)
@@ -62,7 +64,7 @@ export function SearchBar() {
         ref={inputRef}
         value={query}
         disabled={!hasProject}
-        placeholder={hasProject ? 'Buscar archivo o carpeta (Ctrl+P)' : 'Abre una carpeta para buscar'}
+        placeholder={hasProject ? t('search.placeholder') : t('search.noProject')}
         spellCheck={false}
         onChange={(e) => {
           setQuery(e.target.value)
@@ -75,7 +77,7 @@ export function SearchBar() {
       />
       {open && query.trim() && (
         <ul className="search-results" ref={listRef}>
-          {results.length === 0 && <li className="search-empty">{indexing ? 'Indexando…' : 'Sin resultados'}</li>}
+          {results.length === 0 && <li className="search-empty">{indexing ? t('search.indexing') : t('search.noResults')}</li>}
           {results.map((r, i) => (
             <li
               key={r.path}

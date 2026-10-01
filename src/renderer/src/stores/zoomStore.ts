@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { loadSetting, saveSetting } from '../lib/settings'
 
 /**
  * Zoom como en VS Code:
@@ -30,7 +31,7 @@ function validFontSize(value: unknown): number {
 // Preferencia local de este equipo: si el almacenamiento falla, se usan los valores por defecto.
 function load(): SavedZoom {
   try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null') as Partial<SavedZoom> | null
+    const saved = JSON.parse(loadSetting(STORAGE_KEY) ?? 'null') as Partial<SavedZoom> | null
     return {
       windowLevel:
         typeof saved?.windowLevel === 'number'
@@ -43,18 +44,8 @@ function load(): SavedZoom {
   }
 }
 
-let flushTimer: ReturnType<typeof setTimeout> | null = null
-
 function save(zoom: SavedZoom): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(zoom))
-  } catch {
-    return // sin almacenamiento: el zoom dura lo que dure la sesión
-  }
-  // Chromium escribe el localStorage a disco con segundos de retraso: si la app se cierra
-  // de golpe (o electron-vite la reinicia en desarrollo) se perdería el último cambio.
-  if (flushTimer) clearTimeout(flushTimer)
-  flushTimer = setTimeout(() => window.api.flushStorage(), 300)
+  saveSetting(STORAGE_KEY, JSON.stringify(zoom))
 }
 
 /** Porcentaje que corresponde a un nivel de zoom de Electron. */

@@ -1,8 +1,11 @@
+import { ClaudeStatus } from '../claude/ClaudeStatus'
+import { useT } from '../i18n'
 import { useProjectStore } from '../stores/projectStore'
 import { useTerminalStore } from '../stores/terminalStore'
 import { SearchBar } from './SearchBar'
 
 export function Toolbar() {
+  const t = useT()
   const project = useProjectStore((s) => s.project)
   const openFolder = useProjectStore((s) => s.openFolder)
   const collapseAll = useProjectStore((s) => s.collapseAll)
@@ -12,21 +15,24 @@ export function Toolbar() {
 
   return (
     <header className="toolbar">
-      <button onClick={() => void openFolder()} title="Abrir carpeta (Ctrl+O)">
-        Abrir carpeta
+      {/* Arriba a la izquierda, lo primero: el estado de Claude (modelo, contexto, tokens, límites). */}
+      <ClaudeStatus />
+      <span className="toolbar-divider" />
+      <button onClick={() => void openFolder()} title={t('toolbar.openFolderTitle')}>
+        {t('toolbar.openFolder')}
       </button>
       <span className="toolbar-project" title={project?.rootPath}>
-        {project?.name ?? 'Sin proyecto'}
+        {project?.name ?? t('toolbar.noProject')}
       </span>
       <SearchBar />
       <button onClick={collapseAll} disabled={!project}>
-        Colapsar todo
+        {t('toolbar.collapseAll')}
       </button>
       <button onClick={() => void refresh()} disabled={!project}>
-        Refrescar
+        {t('toolbar.refresh')}
       </button>
-      <button onClick={togglePanel} disabled={!project} title="Mostrar/ocultar terminal (Ctrl+J)">
-        {terminalOpen ? 'Ocultar terminal' : 'Terminal'}
+      <button onClick={togglePanel} disabled={!project} title={t('toolbar.terminalTitle')}>
+        {terminalOpen ? t('toolbar.hideTerminal') : t('toolbar.terminal')}
       </button>
     </header>
   )

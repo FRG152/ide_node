@@ -8,6 +8,7 @@ import { Toolbar } from './components/Toolbar'
 import { EditorWindow } from './editor/EditorWindow'
 import { MinimizedList } from './editor/MinimizedList'
 import { ProjectGraph } from './graph/ProjectGraph'
+import { useT } from './i18n'
 import { useGlobalShortcuts } from './lib/shortcuts'
 import { useEditorStore } from './stores/editorStore'
 import { useProjectStore } from './stores/projectStore'
@@ -15,6 +16,7 @@ import { useTerminalStore } from './stores/terminalStore'
 import { TerminalPanel } from './terminal/TerminalPanel'
 
 export function App() {
+  const t = useT()
   const project = useProjectStore((s) => s.project)
   const openFolder = useProjectStore((s) => s.openFolder)
   const terminalOpen = useTerminalStore((s) => s.panelOpen)
@@ -56,8 +58,11 @@ export function App() {
               </>
             ) : (
               <div className="welcome">
-                <p>Abre una carpeta para ver su estructura como un grafo de nodos.</p>
-                <button onClick={() => void openFolder()}>Abrir carpeta (Ctrl+O)</button>
+                <div className="welcome-mark">✻</div>
+                <p>{t('welcome.text')}</p>
+                <button className="primary" onClick={() => void openFolder()}>
+                  {t('welcome.button')}
+                </button>
               </div>
             )}
           </section>

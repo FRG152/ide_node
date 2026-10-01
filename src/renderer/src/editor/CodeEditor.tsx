@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useEditorStore } from '../stores/editorStore'
 import { attachWheelZoom, useZoomStore } from '../stores/zoomStore'
 import { getDocument } from './documents'
-import { monaco } from './monaco'
+import { CLAUDE_THEME, monaco } from './monaco'
 
 /**
  * Una sola instancia de Monaco para todas las pestañas: al cambiar de archivo se cambia
@@ -17,11 +17,12 @@ export function CodeEditor({ path }: { path: string | null }) {
   useEffect(() => {
     const editor = monaco.editor.create(containerRef.current!, {
       model: null,
-      theme: 'vs-dark',
+      theme: CLAUDE_THEME,
       automaticLayout: true,
       fontSize: useZoomStore.getState().fontSize.editor,
       fontFamily: 'Consolas, "Courier New", monospace',
       scrollBeyondLastLine: false,
+      scrollbar: { verticalScrollbarSize: 12, horizontalScrollbarSize: 12, useShadows: false },
       fixedOverflowWidgets: true
     })
     editorRef.current = editor

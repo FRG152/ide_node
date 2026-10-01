@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { closeDocument, isDirty, getDocument, loadDocument, reloadDocument, saveDocument } from '../editor/documents'
+import { t } from '../i18n'
 import { errorMessage } from '../lib/errors'
 import { useProjectStore } from './projectStore'
 
@@ -108,7 +109,7 @@ export const useEditorStore = create<EditorState>()((set, get) => {
         setDirty(path, isDirty(getDocument(path))) // pudo editarse mientras se guardaba
         return true
       } catch (err) {
-        reportError(`No se pudo guardar "${path}": ${errorMessage(err)}`)
+        reportError(t('error.save', { path, message: errorMessage(err) }))
         return false
       }
     },

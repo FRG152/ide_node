@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { FsChanges, FsEntry, IndexEntry, ProjectInfo } from '../../../shared/ipc'
+import { t } from '../i18n'
 import { errorMessage } from '../lib/errors'
 import { ancestorsOf, depthOf, parentOf } from '../lib/paths'
 import { useClaudeStore } from './claudeStore'
@@ -133,7 +134,7 @@ export const useProjectStore = create<ProjectState>()((set, get) => {
     try {
       list = await window.api.listDir(dir)
     } catch (err) {
-      if (get().project === project) set({ error: `No se pudo leer "${dir || project.name}": ${errorMessage(err)}` })
+      if (get().project === project) set({ error: t('error.read', { path: dir || project.name, message: errorMessage(err) }) })
       return false
     }
     if (get().project !== project) return false
@@ -156,7 +157,7 @@ export const useProjectStore = create<ProjectState>()((set, get) => {
       if (get().project?.rootPath !== result.rootPath) return
       set({ index: result.entries, indexTruncated: result.truncated, indexing: false })
     } catch (err) {
-      if (get().project === project) set({ indexing: false, error: `Error indexando: ${errorMessage(err)}` })
+      if (get().project === project) set({ indexing: false, error: t('error.index', { message: errorMessage(err) }) })
     }
   }
 
@@ -240,7 +241,7 @@ export const useProjectStore = create<ProjectState>()((set, get) => {
 
       const entry = get().entries[path]
       if (!entry) {
-        set({ error: `"${path}" ya no existe. Pulsa "Refrescar" para actualizar el proyecto.` })
+        set({ error: t('error.missing', { path }) })
         return
       }
 

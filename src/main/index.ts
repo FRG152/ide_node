@@ -5,6 +5,7 @@ import {
   IDE_MCP_SERVER,
   IPC,
   type IdeCommand,
+  type Language,
   type ProjectIndex,
   type ProjectInfo,
   type TerminalCreateOptions,
@@ -12,6 +13,7 @@ import {
 } from '../shared/ipc'
 import { ClaudeRunner, IDE_SYSTEM_PROMPT } from './claude'
 import { buildIndex, listDir, readFileContent, resolveInside, writeFileContent } from './fileSystem'
+import { setLanguage, t } from './i18n'
 import { IdeMcpServer } from './ideMcp'
 import { TerminalManager } from './terminals'
 import { ProjectWatcher } from './watcher'
@@ -62,7 +64,7 @@ function toProjectPath(root: string, input: string): string {
   if (cleaned === '' || cleaned === '.' || cleaned === './') return ''
   const rel = path.relative(root, path.resolve(root, cleaned))
   if (rel === '..' || rel.startsWith('..' + path.sep) || path.isAbsolute(rel)) {
-    throw new Error(`"${input}" está fuera del proyecto`)
+    throw new Error(t('error.outsideProject', { path: input }))
   }
   return rel.split(path.sep).join('/')
 }
@@ -70,12 +72,12 @@ function toProjectPath(root: string, input: string): string {
 function runIdeCommand(command: IdeCommand): Promise<string> {
   const root = requireRoot()
   const normalized = 'path' in command ? { ...command, path: toProjectPath(root, command.path) } : command
-  if (!mainWindow || mainWindow.isDestroyed()) return Promise.reject(new Error('La ventana de la app no está abierta'))
+  if (!mainWindow || mainWindow.isDestroyed()) return Promise.reject(new Error(t('error.noWindow')))
   const id = nextCommandId++
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       pendingCommands.delete(id)
-      reject(new Error('La interfaz no respondió a tiempo'))
+      reject(new Error(t('error.uiTimeout')))
     }, COMMAND_TIMEOUT_MS)
     pendingCommands.set(id, { resolve, reject, timer })
     sendToRenderer(IPC.ideCommand, id, normalized)
@@ -83,7 +85,7 @@ function runIdeCommand(command: IdeCommand): Promise<string> {
 }
 
 function requireRoot(): string {
-  if (!projectRoot) throw new Error('No hay ningún proyecto abierto')
+  if (!projectRoot) throw new Error(t('error.noProject'))
   return projectRoot
 }
 
@@ -119,7 +121,7 @@ function registerIpc(): void {
 
   ipcMain.handle(IPC.openFolder, async (event): Promise<ProjectInfo | null> => {
     const win = BrowserWindow.fromWebContents(event.sender)
-    const options = { title: 'Abrir carpeta de proyecto', properties: ['openDirectory' as const] }
+    const options = { title: t('dialog.openFolder'), properties: ['openDirectory' as const] }
     const result = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options)
     const selected = result.filePaths[0]
     if (result.canceled || !selected) return null
@@ -151,24 +153,28 @@ function registerIpc(): void {
     const win = BrowserWindow.fromWebContents(event.sender)
     const options = {
       type: 'warning' as const,
-      buttons: ['Guardar', 'No guardar', 'Cancelar'],
+      buttons: [t('dialog.unsaved.save'), t('dialog.unsaved.discard'), t('dialog.unsaved.cancel')],
       defaultId: 0,
       cancelId: 2,
       noLink: true,
       message:
         paths.length === 1
-          ? `¿Quieres guardar los cambios de ${paths[0]}?`
-          : `¿Quieres guardar los cambios de ${paths.length} archivos?`,
-      detail: (paths.length > 1 ? paths.join('\n') + '\n\n' : '') + 'Si no los guardas, se perderán.'
+          ? t('dialog.unsaved.one', { path: paths[0] })
+          : t('dialog.unsaved.many', { count: paths.length }),
+      detail: (paths.length > 1 ? paths.join('\n') + '\n\n' : '') + t('dialog.unsaved.detail')
     }
     const { response } = win ? await dialog.showMessageBox(win, options) : await dialog.showMessageBox(options)
     return (['save', 'discard', 'cancel'] as const)[response] ?? 'cancel'
   })
 
   ipcMain.on(IPC.flushStorage, (event) => event.sender.session.flushStorageData())
+  ipcMain.on(IPC.setLanguage, (_event, language: Language) => {
+    setLanguage(language)
+    buildMenu()
+  })
 
   ipcMain.handle(IPC.claudeRun, (_event, runId: number, prompt: string, sessionId: string | null) => {
-    if (typeof prompt !== 'string' || !prompt.trim()) throw new Error('Mensaje vacío')
+    if (typeof prompt !== 'string' || !prompt.trim()) throw new Error(t('error.emptyMessage'))
     claude.run(runId, requireRoot(), prompt, typeof sessionId === 'string' ? sessionId : null)
   })
   ipcMain.handle(IPC.claudeCancel, () => claude.cancel())
@@ -201,7 +207,7 @@ function buildMenu(): void {
       ...(process.platform === 'darwin' ? [{ role: 'appMenu' as const }] : []),
       { role: 'editMenu' },
       {
-        label: 'Ver',
+        label: t('menu.view'),
         submenu: [
           { role: 'reload' },
           { role: 'toggleDevTools' },
@@ -218,7 +224,7 @@ function createWindow(): void {
     width: 1500,
     height: 950,
     show: false,
-    backgroundColor: '#1e1e1e',
+    backgroundColor: '#1f1e1d',
     autoHideMenuBar: true,
     title: 'IDE Node',
     webPreferences: {
@@ -241,12 +247,12 @@ function createWindow(): void {
   win.webContents.on('will-prevent-unload', (event) => {
     const choice = dialog.showMessageBoxSync(win, {
       type: 'warning',
-      buttons: ['Descartar cambios', 'Cancelar'],
+      buttons: [t('dialog.leave.discard'), t('dialog.leave.cancel')],
       defaultId: 1,
       cancelId: 1,
       noLink: true,
-      message: 'Hay archivos con cambios sin guardar.',
-      detail: 'Si continúas, se perderán.'
+      message: t('dialog.leave.message'),
+      detail: t('dialog.leave.detail')
     })
     if (choice === 0) event.preventDefault() // preventDefault = ignorar el bloqueo y continuar
   })

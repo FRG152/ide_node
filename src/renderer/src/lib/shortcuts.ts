@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useClaudeStore } from '../stores/claudeStore'
 import { useEditorStore } from '../stores/editorStore'
 import { useProjectStore } from '../stores/projectStore'
 import { useTerminalStore } from '../stores/terminalStore'
@@ -42,6 +43,9 @@ export function useGlobalShortcuts(): void {
 
       if (key === 'p') {
         window.dispatchEvent(new Event(FOCUS_SEARCH_EVENT))
+      } else if (key === 'i') {
+        // Pregunta a Claude: el IDE gira en torno a él, así que tiene atajo propio.
+        if (useProjectStore.getState().project) useClaudeStore.getState().expandBar()
       } else if (key === 'o') {
         void useProjectStore.getState().openFolder()
       } else if (key === 's') {

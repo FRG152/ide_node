@@ -4,6 +4,7 @@ import { useProjectStore } from '../stores/projectStore'
 import { attachWheelZoom } from '../stores/zoomStore'
 import { useTerminalStore, type TerminalTab } from '../stores/terminalStore'
 import { attachInstance, fitInstance } from './registry'
+import { useT } from '../i18n'
 import { classes } from '../lib/classes'
 
 function statusOf(tab: TerminalTab): string {
@@ -12,6 +13,7 @@ function statusOf(tab: TerminalTab): string {
 }
 
 export function TerminalPanel() {
+  const t = useT()
   const { tabs, active, newShell, runScript, stop, restart, close, activate, togglePanel } = useTerminalStore(
     useShallow((s) => ({
       tabs: s.tabs,
@@ -37,13 +39,13 @@ export function TerminalPanel() {
               key={tab.id}
               className={classes('terminal-tab', tab.id === active && 'active')}
               onClick={() => activate(tab.id)}
-              title={tab.command ?? 'Shell interactiva'}
+              title={tab.command ?? t('terminal.interactive')}
             >
               {tab.command && <span className={classes('status-dot', statusOf(tab))} />}
               <span>{tab.title}</span>
               <button
                 className="terminal-tab-close"
-                title={tab.exitCode === null ? 'Cerrar y matar el proceso' : 'Cerrar'}
+                title={tab.exitCode === null ? t('terminal.closeKill') : t('terminal.close')}
                 onClick={(e) => {
                   e.stopPropagation()
                   void close(tab.id)
@@ -53,7 +55,7 @@ export function TerminalPanel() {
               </button>
             </div>
           ))}
-          <button className="terminal-add" title="Nueva terminal" onClick={() => void newShell()}>
+          <button className="terminal-add" title={t('terminal.new')} onClick={() => void newShell()}>
             +
           </button>
         </div>
@@ -68,11 +70,11 @@ export function TerminalPanel() {
 
         {activeTab?.command &&
           (activeTab.exitCode === null ? (
-            <button onClick={() => void stop(activeTab.id)}>■ Detener</button>
+            <button onClick={() => void stop(activeTab.id)}>{t('terminal.stop')}</button>
           ) : (
-            <button onClick={() => void restart(activeTab.id)}>↻ Reiniciar</button>
+            <button onClick={() => void restart(activeTab.id)}>{t('terminal.restart')}</button>
           ))}
-        <button className="terminal-hide" title="Ocultar panel (Ctrl+J)" onClick={togglePanel}>
+        <button className="terminal-hide" title={t('terminal.hide')} onClick={togglePanel}>
           ▾
         </button>
       </div>
@@ -81,7 +83,7 @@ export function TerminalPanel() {
         {activeTab ? (
           <TerminalView key={activeTab.id} id={activeTab.id} />
         ) : (
-          <div className="terminal-empty">Sin terminales. Pulsa + o ejecuta un script.</div>
+          <div className="terminal-empty">{t('terminal.empty')}</div>
         )}
       </div>
     </div>

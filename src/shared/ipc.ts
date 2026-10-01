@@ -5,6 +5,8 @@
  * raíz del proyecto abierto, separadas por "/". La raíz es la cadena vacía "".
  */
 
+export type Language = 'en' | 'es'
+
 export type EntryKind = 'file' | 'directory'
 
 export interface FsEntry {
@@ -77,10 +79,32 @@ export type IdeCommand =
 /** Qué hace Claude con un archivo, para resaltarlo en el grafo. */
 export type ClaudeFileAccess = 'read' | 'edit'
 
+/** Tokens de una conversación con Claude (suma de sus ejecuciones). */
+export interface ClaudeUsage {
+  inputTokens: number
+  cacheReadTokens: number
+  cacheWriteTokens: number
+  outputTokens: number
+  /** Coste a precios de lista de la API (con suscripción es orientativo). */
+  costUsd: number
+}
+
+/** Uso de una ventana de límites del plan (0..1) y cuándo se reinicia (epoch en segundos). */
+export interface UsageWindow {
+  utilization: number
+  resetsAt: number
+}
+
 /** Eventos de una ejecución de Claude, ya simplificados por el main. */
 export type ClaudeEvent =
-  /** Id de la conversación: se pasa al siguiente mensaje para continuarla. */
-  | { type: 'session'; sessionId: string }
+  /** Id de la conversación (se pasa al siguiente mensaje para continuarla) y modelo en uso. */
+  | { type: 'session'; sessionId: string; model: string | null }
+  /** Tokens que ocupa el contexto en la última llamada al modelo. */
+  | { type: 'context'; tokens: number }
+  /** Tokens de esta ejecución y tamaño de la ventana de contexto del modelo. */
+  | { type: 'usage'; usage: ClaudeUsage; contextWindow: number | null }
+  /** Límites de uso del plan (ventana de 5 horas y semanal). */
+  | { type: 'limits'; fiveHour: UsageWindow | null; sevenDay: UsageWindow | null }
   /** Trozo de texto de la respuesta, según se genera. */
   | { type: 'text'; text: string }
   /** Claude usa una herramienta. `path` es relativo al proyecto si la herramienta toca un archivo de él. */
@@ -100,6 +124,8 @@ export interface IdeApi {
   /** Abre el archivo con la aplicación predeterminada del sistema. Devuelve un mensaje de error o "". */
   openPath(path: string): Promise<string>
   revealPath(path: string): Promise<void>
+  /** Idioma de los diálogos y errores del main. */
+  setLanguage(language: Language): void
   /** Zoom de toda la ventana (nivel de Electron: 0 = 100%, cada paso ×1.2). */
   setZoomLevel(level: number): void
   /** Escribe ya a disco el localStorage (Chromium lo hace con retraso y se pierde si el proceso muere). */
@@ -141,6 +167,7 @@ export const IPC = {
   revealPath: 'shell:reveal-path',
   confirmUnsaved: 'ui:confirm-unsaved',
   flushStorage: 'app:flush-storage',
+  setLanguage: 'app:set-language',
   claudeRun: 'claude:run',
   claudeCancel: 'claude:cancel',
   claudeEvent: 'claude:event',

@@ -1,10 +1,12 @@
 import { useShallow } from 'zustand/react/shallow'
+import { useT } from '../i18n'
 import { colorForFile } from '../lib/fileColors'
 import { baseName, parentOf } from '../lib/paths'
 import { useEditorStore } from '../stores/editorStore'
 
 /** Archivos minimizados, a la derecha, de arriba abajo en el orden en que se minimizaron. */
 export function MinimizedList() {
+  const t = useT()
   const { minimized, dirty, open, close } = useEditorStore(
     useShallow((s) => ({ minimized: s.minimized, dirty: s.dirty, open: s.open, close: s.close }))
   )
@@ -17,7 +19,7 @@ export function MinimizedList() {
           key={path}
           className="minimized-item"
           style={{ borderLeftColor: colorForFile(path) }}
-          title={`${path}\nClic para abrir · clic central para cerrar`}
+          title={t('minimized.title', { path })}
           onClick={() => void open(path, 'center')}
           onMouseDown={(e) => {
             if (e.button === 1) {
@@ -29,13 +31,13 @@ export function MinimizedList() {
           <span className="minimized-text">
             <span className="minimized-name">
               {baseName(path)}
-              {dirty[path] && <span title="Cambios sin guardar"> ●</span>}
+              {dirty[path] && <span title={t('editor.unsaved')}> ●</span>}
             </span>
             <span className="minimized-dir">{parentOf(path)}</span>
           </span>
           <button
             className="minimized-close"
-            title="Cerrar"
+            title={t('minimized.close')}
             onClick={(e) => {
               e.stopPropagation()
               void close(path)

@@ -8,7 +8,7 @@ import { IDE_MCP_SERVER, type IdeCommand } from '../shared/ipc'
 
 const pathArg = z
   .string()
-  .describe('Ruta relativa a la raíz del proyecto, con "/" (la raíz es ""). También vale una ruta absoluta dentro del proyecto.')
+  .describe('Path relative to the project root, using "/" (the root is ""). An absolute path inside the project also works.')
 
 /**
  * Servidor MCP local con herramientas para manejar la interfaz de la app (el grafo y el
@@ -88,20 +88,20 @@ export class IdeMcpServer {
       'expand_folder',
       {
         description:
-          'Expande una carpeta en el grafo que el usuario ve en pantalla (y las carpetas que la contienen), la centra y devuelve su contenido. Úsala para recorrer el proyecto paso a paso.',
+          'Expands a folder in the graph the user sees on screen (and the folders containing it), centers it and returns its contents. Use it to walk through the project step by step.',
         inputSchema: { path: pathArg }
       },
       ({ path }) => run({ type: 'expand_folder', path })
     )
     server.registerTool(
       'collapse_folder',
-      { description: 'Colapsa una carpeta del grafo.', inputSchema: { path: pathArg } },
+      { description: 'Collapses a folder in the graph.', inputSchema: { path: pathArg } },
       ({ path }) => run({ type: 'collapse_folder', path })
     )
     server.registerTool(
       'select_node',
       {
-        description: 'Selecciona y centra en el grafo un archivo o carpeta, sin abrirlo en el editor.',
+        description: 'Selects and centers a file or folder in the graph, without opening it in the editor.',
         inputSchema: { path: pathArg }
       },
       ({ path }) => run({ type: 'select_node', path })
@@ -110,8 +110,8 @@ export class IdeMcpServer {
       'open_file',
       {
         description:
-          'Abre un archivo en el editor del usuario (ventana central) y lo selecciona en el grafo. Opcionalmente lleva el cursor a una línea.',
-        inputSchema: { path: pathArg, line: z.number().int().positive().optional().describe('Línea (desde 1)') }
+          "Opens a file in the user's editor (central window) and selects it in the graph. Optionally moves the cursor to a line.",
+        inputSchema: { path: pathArg, line: z.number().int().positive().optional().describe('Line number (1-based)') }
       },
       ({ path, line }) => run({ type: 'open_file', path, line })
     )
@@ -119,7 +119,7 @@ export class IdeMcpServer {
       'get_view',
       {
         description:
-          'Describe lo que el usuario está viendo: nodo seleccionado, archivo en el editor, archivos minimizados y carpetas expandidas.'
+          'Describes what the user is looking at: selected node, file in the editor, minimized files and expanded folders.'
       },
       () => run({ type: 'get_view' })
     )

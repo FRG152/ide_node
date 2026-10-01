@@ -1,5 +1,6 @@
 import { create } from 'zustand'
-import type { ClaudeEvent, ClaudeFileAccess } from '../../../shared/ipc'
+import type { ClaudeEvent, ClaudeFileAccess, ClaudeUsage, UsageWindow } from '../../../shared/ipc'
+import { t } from '../i18n'
 import { errorMessage } from '../lib/errors'
 import { useProjectStore } from './projectStore'
 
@@ -9,22 +10,47 @@ export type ClaudeEntry =
   | { kind: 'tool'; name: string; detail: string; path: string | null; access: ClaudeFileAccess | null }
   | { kind: 'info'; text: string; error: boolean }
 
+export interface PlanLimits {
+  fiveHour: UsageWindow | null
+  sevenDay: UsageWindow | null
+}
+
 interface ClaudeState {
   entries: ClaudeEntry[]
   running: boolean
   /** Ejecución en curso; los eventos de otras (canceladas) se ignoran. */
   runId: number | null
+  runStartedAt: number | null
   /** Conversación de Claude Code: se reanuda en cada mensaje para que recuerde el contexto. */
   sessionId: string | null
   /** Archivos que Claude ha leído o editado en esta conversación (se resaltan en el grafo). */
   touched: Record<string, ClaudeFileAccess>
+
+  /** Modelo que usa Claude Code (lo anuncia al empezar cada ejecución). */
+  model: string | null
+  /** Tokens que ocupa ahora el contexto de la conversación. */
+  contextTokens: number | null
+  contextWindow: number | null
+  /** Tokens acumulados en la conversación. */
+  usage: ClaudeUsage
+  /** Límites del plan (5 horas y semanal): son de la cuenta, sobreviven a "nueva conversación". */
+  limits: PlanLimits | null
+
   transcriptOpen: boolean
+  /** Input minimizado a una píldora (que sigue indicando si Claude trabaja). */
+  barCollapsed: boolean
+  /** Claude terminó mientras el input estaba minimizado: la píldora lo avisa. */
+  unseenResult: boolean
 
   send: (prompt: string) => Promise<void>
   cancel: () => Promise<void>
   newConversation: () => void
   toggleTranscript: () => void
+  collapseBar: () => void
+  expandBar: () => void
 }
+
+const EMPTY_USAGE: ClaudeUsage = { inputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, outputTokens: 0, costUsd: 0 }
 
 let nextRunId = 1
 
@@ -32,23 +58,44 @@ const initialConversation = {
   entries: [],
   running: false,
   runId: null,
+  runStartedAt: null,
   sessionId: null,
-  touched: {}
+  touched: {},
+  contextTokens: null,
+  usage: EMPTY_USAGE,
+  unseenResult: false
 }
+
+/** Evento que escucha el input para enfocarse (Ctrl+I o clic en la píldora). */
+export const FOCUS_CLAUDE_EVENT = 'ide:focus-claude'
 
 export const useClaudeStore = create<ClaudeState>()((set, get) => ({
   ...initialConversation,
+  model: null,
+  contextWindow: null,
+  limits: null,
   transcriptOpen: true,
+  barCollapsed: false,
 
   async send(prompt) {
     const text = prompt.trim()
     if (!text || get().running) return
     const runId = nextRunId++
-    set((s) => ({ entries: [...s.entries, { kind: 'user', text }], running: true, runId, transcriptOpen: true }))
+    set((s) => ({
+      entries: [...s.entries, { kind: 'user', text }],
+      running: true,
+      runId,
+      runStartedAt: Date.now(),
+      transcriptOpen: true
+    }))
     try {
       await window.api.claudeRun(runId, text, get().sessionId)
     } catch (err) {
-      set((s) => ({ running: false, entries: [...s.entries, { kind: 'info', text: errorMessage(err), error: true }] }))
+      set((s) => ({
+        running: false,
+        runStartedAt: null,
+        entries: [...s.entries, { kind: 'info', text: errorMessage(err), error: true }]
+      }))
     }
   },
 
@@ -63,6 +110,15 @@ export const useClaudeStore = create<ClaudeState>()((set, get) => ({
 
   toggleTranscript() {
     set((s) => ({ transcriptOpen: !s.transcriptOpen }))
+  },
+
+  collapseBar() {
+    set({ barCollapsed: true })
+  },
+
+  expandBar() {
+    set({ barCollapsed: false, unseenResult: false, transcriptOpen: true })
+    window.dispatchEvent(new Event(FOCUS_CLAUDE_EVENT))
   }
 }))
 
@@ -70,11 +126,36 @@ function append(entry: ClaudeEntry): void {
   useClaudeStore.setState((s) => ({ entries: [...s.entries, entry] }))
 }
 
+function finishRun(): void {
+  useClaudeStore.setState((s) => ({ running: false, runId: null, runStartedAt: null, unseenResult: s.barCollapsed }))
+}
+
 function handleEvent(event: ClaudeEvent): void {
   const store = useClaudeStore
   switch (event.type) {
     case 'session':
-      store.setState({ sessionId: event.sessionId })
+      store.setState((s) => ({ sessionId: event.sessionId, model: event.model ?? s.model }))
+      break
+
+    case 'context':
+      store.setState({ contextTokens: event.tokens })
+      break
+
+    case 'usage':
+      store.setState((s) => ({
+        usage: {
+          inputTokens: s.usage.inputTokens + event.usage.inputTokens,
+          cacheReadTokens: s.usage.cacheReadTokens + event.usage.cacheReadTokens,
+          cacheWriteTokens: s.usage.cacheWriteTokens + event.usage.cacheWriteTokens,
+          outputTokens: s.usage.outputTokens + event.usage.outputTokens,
+          costUsd: s.usage.costUsd + event.usage.costUsd
+        },
+        contextWindow: event.contextWindow ?? s.contextWindow
+      }))
+      break
+
+    case 'limits':
+      store.setState({ limits: { fiveHour: event.fiveHour, sevenDay: event.sevenDay } })
       break
 
     case 'text':
@@ -105,21 +186,17 @@ function handleEvent(event: ClaudeEvent): void {
       const answered = store.getState().entries.slice(lastUser).some((e) => e.kind === 'assistant')
       // Sin streaming (o si se perdió), mostramos el texto final.
       if (!answered && event.result) append({ kind: 'assistant', text: event.result })
-      if (!event.ok) append({ kind: 'info', text: 'Claude no pudo completar la tarea.', error: true })
+      if (!event.ok) append({ kind: 'info', text: t('claude.failed'), error: true })
       if (event.denied.length > 0) {
-        append({
-          kind: 'info',
-          text: `No permitido (Claude solo puede leer y editar archivos): ${event.denied.join(' · ')}`,
-          error: false
-        })
+        append({ kind: 'info', text: t('claude.denied', { list: event.denied.join(' · ') }), error: false })
       }
-      store.setState({ running: false, runId: null })
+      finishRun()
       break
     }
 
     case 'error':
       append({ kind: 'info', text: event.message, error: true })
-      store.setState({ running: false, runId: null })
+      finishRun()
       break
   }
 }
