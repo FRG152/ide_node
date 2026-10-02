@@ -1,6 +1,7 @@
 import { execFile, execFileSync } from 'node:child_process'
 import * as pty from 'node-pty'
 import type { TerminalCreateOptions } from '../shared/ipc'
+import { CLAUDE_SESSION_ENV, type LaunchSpec } from './claudeCode'
 
 /** Agrupa la salida del pty para no mandar un mensaje IPC por cada trozo. */
 const FLUSH_MS = 8
@@ -37,14 +38,15 @@ export class TerminalManager {
 
   constructor(private readonly events: TerminalEvents) {}
 
-  async create(cwd: string, { command, cols, rows }: TerminalCreateOptions): Promise<number> {
-    const [file, args] = command ? commandLine(command) : await this.interactiveShell()
+  /** `launch`: programa concreto a ejecutar (p. ej. Claude Code) en lugar de una shell. */
+  async create(cwd: string, { command, cols, rows }: TerminalCreateOptions, launch?: LaunchSpec): Promise<number> {
+    const [file, args] = launch ? [launch.file, launch.args] : command ? commandLine(command) : await this.interactiveShell()
     const proc = pty.spawn(file, args, {
       name: 'xterm-256color',
       cols: clampSize(cols),
       rows: clampSize(rows),
       cwd,
-      env: childEnv()
+      env: { ...childEnv(), ...launch?.env }
     })
 
     const id = this.nextId++
@@ -126,7 +128,7 @@ function commandLine(command: string): [string, string | string[]] {
 function childEnv(): Record<string, string> {
   const env: Record<string, string> = {}
   for (const [key, value] of Object.entries(process.env)) {
-    if (value !== undefined && !PRIVATE_ENV.includes(key)) env[key] = value
+    if (value !== undefined && !PRIVATE_ENV.includes(key) && !CLAUDE_SESSION_ENV.includes(key)) env[key] = value
   }
   // Con la app en modo dev, Vite pone NODE_ENV=development; heredado, un `npm run build`
   // del proyecto del usuario compilaría en modo desarrollo.

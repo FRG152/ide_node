@@ -25,8 +25,6 @@ const api: IdeApi = {
   confirmUnsaved: (paths) => ipcRenderer.invoke(IPC.confirmUnsaved, paths),
   onFsChanges: (listener) => subscribe(IPC.fsChanges, listener),
 
-  claudeRun: (runId, prompt, sessionId) => ipcRenderer.invoke(IPC.claudeRun, runId, prompt, sessionId),
-  claudeCancel: () => ipcRenderer.invoke(IPC.claudeCancel),
   onClaudeEvent: (listener) => subscribe(IPC.claudeEvent, listener),
 
   onIdeCommand: (listener) => subscribe(IPC.ideCommand, listener),

@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useShallow } from 'zustand/react/shallow'
+import { Spinner } from '../claude/Spinner'
+import { useClaudeStore } from '../stores/claudeStore'
 import { useProjectStore } from '../stores/projectStore'
 import { attachWheelZoom } from '../stores/zoomStore'
 import { useTerminalStore, type TerminalTab } from '../stores/terminalStore'
@@ -37,10 +39,11 @@ export function TerminalPanel() {
           {tabs.map((tab) => (
             <div
               key={tab.id}
-              className={classes('terminal-tab', tab.id === active && 'active')}
+              className={classes('terminal-tab', tab.id === active && 'active', tab.claude && 'claude')}
               onClick={() => activate(tab.id)}
               title={tab.command ?? t('terminal.interactive')}
             >
+              {tab.claude ? <ClaudeTabIcon exited={tab.exitCode !== null} /> : null}
               {tab.command && <span className={classes('status-dot', statusOf(tab))} />}
               <span>{tab.title}</span>
               <button
@@ -105,4 +108,11 @@ function TerminalView({ id }: { id: number }) {
     }
   }, [id])
   return <div ref={ref} className="terminal-view" />
+}
+
+/** Icono de la pestaña de Claude: animado mientras trabaja, en aviso si espera al usuario. */
+function ClaudeTabIcon({ exited }: { exited: boolean }) {
+  const status = useClaudeStore((s) => s.status)
+  if (!exited && status === 'working') return <Spinner />
+  return <span className={classes('claude-glyph', !exited && status === 'attention' && 'attention', exited && 'off')}>✻</span>
 }

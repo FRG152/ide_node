@@ -1,61 +1,88 @@
 import { useShallow } from 'zustand/react/shallow'
-import type { UsageWindow } from '../../../shared/ipc'
-import { formatTokens, useLanguageStore, useT } from '../i18n'
+import { IDE_TOOL_PREFIX } from '../../../shared/ipc'
+import { formatTokens, isMessageKey, t, useLanguageStore, useT } from '../i18n'
 import { classes } from '../lib/classes'
 import { useClaudeStore } from '../stores/claudeStore'
-import { Spinner } from './Spinner'
+import { useProjectStore } from '../stores/projectStore'
+import { useTerminalStore } from '../stores/terminalStore'
+import { formatElapsed, Spinner, useElapsedSeconds } from './Spinner'
 
-/** A partir de aquí, contexto y límites se pintan en color de aviso. */
+/** A partir de aquí, el contexto se pinta en color de aviso. */
 const WARN_PERCENT = 80
 
 /** "claude-opus-5-5" -> "Opus 5.5". */
 function modelName(model: string | null): string | null {
   if (!model) return null
-  const parts = model
+  const [family, ...version] = model
     .replace(/^claude-/, '')
     .split('-')
     .filter((p) => !/^\d{8}$/.test(p)) // sin sufijo de fecha
-  const [family, ...version] = parts
   if (!family) return model
   return `${family[0].toUpperCase()}${family.slice(1)}${version.length ? ' ' + version.join('.') : ''}`
 }
 
-/** Uso de Claude arriba a la izquierda: modelo, contexto, tokens de la conversación y límites del plan. */
+/** Nombre legible de una herramienta de Claude Code (o de las de la interfaz, mcp__ide_node__*). */
+export function toolLabel(name: string): string {
+  const short = name.startsWith(IDE_TOOL_PREFIX) ? name.slice(IDE_TOOL_PREFIX.length) : name
+  const key = `tool.${short}`
+  return isMessageKey(key) ? t(key) : name
+}
+
+/**
+ * Arriba a la izquierda: el estado de Claude Code (que corre en la terminal) visible siempre,
+ * aunque el panel esté oculto. Clic: abre su pestaña.
+ */
 export function ClaudeStatus() {
   const t = useT()
   const language = useLanguageStore((s) => s.language)
-  const { model, running, contextTokens, contextWindow, usage, limits } = useClaudeStore(
-    useShallow((s) => ({
-      model: s.model,
-      running: s.running,
-      contextTokens: s.contextTokens,
-      contextWindow: s.contextWindow,
-      usage: s.usage,
-      limits: s.limits
-    }))
-  )
+  const hasProject = useProjectStore((s) => s.project !== null)
+  const openClaude = useTerminalStore((s) => s.openClaude)
+  const { status, workingSince, attentionMessage, lastTool, model, contextTokens, contextWindow, usage } =
+    useClaudeStore(
+      useShallow((s) => ({
+        status: s.status,
+        workingSince: s.workingSince,
+        attentionMessage: s.attentionMessage,
+        lastTool: s.lastTool,
+        model: s.model,
+        contextTokens: s.contextTokens,
+        contextWindow: s.contextWindow,
+        usage: s.usage
+      }))
+    )
+  const elapsed = useElapsedSeconds(status === 'working' ? workingSince : null)
 
-  const totalTokens = usage.inputTokens + usage.cacheReadTokens + usage.cacheWriteTokens + usage.outputTokens
   const contextPercent =
     contextTokens !== null && contextWindow ? Math.min(100, Math.round((contextTokens / contextWindow) * 100)) : null
-
-  const resetTime = (window: UsageWindow | null): string =>
-    window?.resetsAt
-      ? new Date(window.resetsAt * 1000).toLocaleString(language, { weekday: 'short', hour: '2-digit', minute: '2-digit' })
-      : '—'
-  const percentOf = (window: UsageWindow | null): number | null =>
-    window ? Math.round(window.utilization * 100) : null
+  const totalTokens = usage ? usage.inputTokens + usage.cacheReadTokens + usage.cacheWriteTokens + usage.outputTokens : 0
 
   return (
-    <div className="claude-status">
-      <span className={classes('claude-status-model', running && 'running')} title={running ? t('usage.workingTitle') : undefined}>
-        {running ? <Spinner /> : <span className="claude-glyph">✻</span>}
+    <button
+      className={classes('claude-status', status)}
+      onClick={() => void openClaude()}
+      disabled={!hasProject}
+      title={`${t(`claude.status.${status}`)}${attentionMessage ? `\n${attentionMessage}` : ''}\n${t('claude.open')}`}
+    >
+      <span className="claude-status-model">
+        {status === 'working' ? <Spinner /> : <span className="claude-glyph">✻</span>}
         {modelName(model) ?? t('usage.claude')}
       </span>
 
-      {contextTokens === null ? (
-        <span className="claude-status-dim">{t('usage.noUsage')}</span>
-      ) : (
+      {status === 'working' && (
+        <span className="claude-status-activity">
+          {formatElapsed(elapsed)}
+          {lastTool && (
+            <span className="claude-status-tool">
+              {' · '}
+              {toolLabel(lastTool.name)} {lastTool.detail || (lastTool.name.startsWith(IDE_TOOL_PREFIX) ? t('tool.root') : '')}
+            </span>
+          )}
+        </span>
+      )}
+      {status === 'attention' && <span className="claude-status-attention">{t('claude.label.attention')}</span>}
+      {status === 'off' && <span className="claude-status-dim">{t('claude.label.off')}</span>}
+
+      {contextTokens !== null && (
         <span
           className="claude-status-context"
           title={
@@ -79,43 +106,19 @@ export function ClaudeStatus() {
         </span>
       )}
 
-      {totalTokens > 0 && (
+      {usage && totalTokens > 0 && (
         <span
           className="claude-status-tokens"
           title={t('usage.tokensTitle', {
             input: usage.inputTokens.toLocaleString(language),
             cacheRead: usage.cacheReadTokens.toLocaleString(language),
             cacheWrite: usage.cacheWriteTokens.toLocaleString(language),
-            output: usage.outputTokens.toLocaleString(language),
-            cost: `$${usage.costUsd.toFixed(2)}`
+            output: usage.outputTokens.toLocaleString(language)
           })}
         >
           {t('usage.tokens', { count: formatTokens(totalTokens) })}
         </span>
       )}
-
-      {limits && (limits.fiveHour || limits.sevenDay) && (
-        <span
-          className="claude-status-limits"
-          title={t('usage.limitsTitle', {
-            fiveHour: percentOf(limits.fiveHour) === null ? '—' : `${percentOf(limits.fiveHour)}%`,
-            fiveHourReset: resetTime(limits.fiveHour),
-            sevenDay: percentOf(limits.sevenDay) === null ? '—' : `${percentOf(limits.sevenDay)}%`,
-            sevenDayReset: resetTime(limits.sevenDay)
-          })}
-        >
-          {limits.fiveHour && (
-            <span className={classes((percentOf(limits.fiveHour) ?? 0) >= WARN_PERCENT && 'warn')}>
-              {t('usage.limit5h', { percent: percentOf(limits.fiveHour) ?? 0 })}
-            </span>
-          )}
-          {limits.sevenDay && (
-            <span className={classes((percentOf(limits.sevenDay) ?? 0) >= WARN_PERCENT && 'warn')}>
-              {t('usage.limit7d', { percent: percentOf(limits.sevenDay) ?? 0 })}
-            </span>
-          )}
-        </span>
-      )}
-    </div>
+    </button>
   )
 }

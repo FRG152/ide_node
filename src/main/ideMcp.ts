@@ -20,12 +20,29 @@ export class IdeMcpServer {
   /** Solo quien conozca el token (el `claude` que lanzamos) puede usar el servidor. */
   private readonly token = randomBytes(24).toString('hex')
 
-  constructor(private readonly runCommand: (command: IdeCommand) => Promise<string>) {}
+  constructor(
+    private readonly runCommand: (command: IdeCommand) => Promise<string>,
+    /** JSON que envían los hooks de Claude Code (ver claudeCode.ts). */
+    private readonly onHook: (payload: Record<string, unknown>) => void
+  ) {}
+
+  /** Secreto compartido con el `claude` que lanzamos (cabecera del MCP y de los hooks). */
+  get authToken(): string {
+    return this.token
+  }
+
+  hookUrl(): string {
+    return `http://127.0.0.1:${this.port}/hook`
+  }
 
   async start(): Promise<void> {
     const http = createServer((req, res) => {
-      if (req.url !== '/mcp' || req.headers.authorization !== `Bearer ${this.token}`) {
+      if ((req.url !== '/mcp' && req.url !== '/hook') || req.headers.authorization !== `Bearer ${this.token}`) {
         res.writeHead(401).end()
+        return
+      }
+      if (req.url === '/hook') {
+        this.receiveHook(req, res)
         return
       }
       if (req.method !== 'POST') {
@@ -54,6 +71,24 @@ export class IdeMcpServer {
     await new Promise<void>((resolve) => http.listen(0, '127.0.0.1', resolve))
     this.http = http
     this.port = (http.address() as AddressInfo).port
+  }
+
+  private receiveHook(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse): void {
+    let body = ''
+    req.setEncoding('utf8')
+    req.on('data', (chunk: string) => {
+      body += chunk
+      if (body.length > 1_000_000) req.destroy() // un hook no manda tanto
+    })
+    req.on('end', () => {
+      res.writeHead(204).end()
+      try {
+        const payload = JSON.parse(body) as unknown
+        if (payload && typeof payload === 'object') this.onHook(payload as Record<string, unknown>)
+      } catch {
+        // JSON inválido: lo ignoramos
+      }
+    })
   }
 
   stop(): void {

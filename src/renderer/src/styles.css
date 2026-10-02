@@ -158,14 +158,48 @@ select {
   white-space: nowrap;
 }
 
-/* ---- Estado de Claude (arriba a la izquierda) ---- */
+/* ---- Estado de Claude (arriba a la izquierda): botón que abre su pestaña ---- */
 .claude-status {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
+  max-width: 46vw;
+  padding: 3px 10px;
   font-size: 12px;
   color: var(--text-secondary);
   white-space: nowrap;
+  border-color: transparent;
+}
+.claude-status:hover:not(:disabled) {
+  border-color: var(--border-strong);
+}
+.claude-status.working {
+  border-color: rgba(215, 119, 87, 0.45);
+  background: var(--claude-soft);
+}
+.claude-status.attention {
+  border-color: var(--warning);
+  animation: claude-attention 1.4s ease-in-out infinite;
+}
+@keyframes claude-attention {
+  50% {
+    box-shadow: 0 0 0 3px rgba(255, 193, 7, 0.18);
+  }
+}
+.claude-status-activity {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--claude-shimmer);
+  font-variant-numeric: tabular-nums;
+}
+.claude-status-tool {
+  color: var(--text-secondary);
+}
+.claude-status-attention {
+  color: var(--warning);
+  font-weight: 600;
 }
 .claude-status-model {
   display: flex;
@@ -212,14 +246,6 @@ select {
 }
 .claude-status-tokens {
   font-variant-numeric: tabular-nums;
-}
-.claude-status-limits {
-  display: flex;
-  gap: 8px;
-  font-variant-numeric: tabular-nums;
-}
-.claude-status-limits .warn {
-  color: var(--warning);
 }
 
 /* ---- Buscador ---- */
@@ -455,7 +481,7 @@ select {
   position: absolute;
   z-index: 10;
   top: 16px;
-  bottom: 96px; /* deja sitio a la barra de Claude */
+  bottom: 16px;
   left: 50%;
   transform: translateX(-50%);
   /* Ancho que deja libre la lista de minimizados de la derecha. */
@@ -618,190 +644,6 @@ select {
   font-size: 15px;
 }
 
-/* ---- Claude: input abajo en el centro ---- */
-.claude-bar {
-  position: absolute;
-  z-index: 20;
-  bottom: 16px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: min(760px, calc(100% - 32px));
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.claude-transcript {
-  max-height: 42vh;
-  overflow-y: auto;
-  padding: 10px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  background: rgba(38, 38, 36, 0.97);
-  border: 1px solid var(--border-strong);
-  border-radius: 10px;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
-}
-.claude-entry {
-  white-space: pre-wrap;
-  word-break: break-word;
-  line-height: 1.45;
-}
-.claude-user {
-  align-self: flex-end;
-  max-width: 85%;
-  padding: 6px 10px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-strong);
-  border-radius: 10px;
-}
-.claude-assistant {
-  color: var(--text);
-}
-.claude-tool {
-  display: flex;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--text-dim);
-  font-family: Consolas, monospace;
-}
-.claude-tool::before {
-  content: '⏺';
-  color: var(--success);
-  font-size: 10px;
-  line-height: 18px;
-}
-.claude-tool.link {
-  cursor: pointer;
-}
-.claude-tool.link:hover .claude-tool-detail {
-  color: var(--text-secondary);
-  text-decoration: underline;
-}
-.claude-tool-name {
-  min-width: 78px;
-  color: var(--text);
-  font-weight: 600;
-}
-.claude-tool-edit::before {
-  color: var(--claude);
-}
-.claude-tool-ui::before {
-  color: var(--suggestion);
-}
-.claude-tool-detail {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.claude-info {
-  font-size: 12px;
-  color: var(--text-dim);
-}
-.claude-info.error {
-  color: var(--error);
-}
-/* "✻ Working… 12s · esc to interrupt" */
-.claude-working {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 6px;
-  font-size: 12px;
-}
-.claude-working-label {
-  color: var(--claude);
-  font-weight: 600;
-  background: linear-gradient(90deg, var(--claude) 0%, var(--claude-shimmer) 50%, var(--claude) 100%);
-  background-size: 200% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  animation: claude-shimmer 1.6s linear infinite;
-}
-.claude-working-meta {
-  color: var(--text-dim);
-}
-@keyframes claude-shimmer {
-  to {
-    background-position: -200% 0;
-  }
-}
-.claude-input-row {
-  display: flex;
-  align-items: flex-end;
-  gap: 6px;
-  padding: 6px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-strong);
-  border-radius: 12px;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
-}
-.claude-input-row:focus-within {
-  border-color: var(--claude);
-  box-shadow: 0 0 0 3px var(--claude-soft), 0 8px 28px rgba(0, 0, 0, 0.55);
-}
-.claude-input-row textarea {
-  flex: 1;
-  resize: none;
-  min-height: 30px;
-  padding: 6px 8px;
-  background: transparent;
-  color: var(--text);
-  border: none;
-  outline: none;
-  font: inherit;
-  line-height: 1.4;
-}
-.claude-input-row textarea::placeholder {
-  color: var(--text-subtle);
-}
-.claude-input-row button {
-  height: 30px;
-}
-.claude-input-row .claude-icon {
-  border: none;
-  color: var(--text-dim);
-  width: 30px;
-  padding: 0;
-  font-size: 15px;
-}
-.claude-input-row .claude-stop {
-  border-color: var(--error);
-  color: var(--error);
-}
-/* Input minimizado: una píldora que sigue diciendo si Claude trabaja. */
-.claude-pill {
-  position: absolute;
-  z-index: 20;
-  bottom: 16px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 14px;
-  background: var(--bg-elevated);
-  color: var(--text-secondary);
-  border: 1px solid var(--border-strong);
-  border-radius: 999px;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
-}
-.claude-pill.running {
-  color: var(--claude-shimmer);
-  border-color: var(--claude);
-  animation: claude-glow 1.6s ease-in-out infinite;
-}
-.claude-pill.unseen {
-  color: var(--text);
-  border-color: var(--success);
-}
-@keyframes claude-glow {
-  50% {
-    box-shadow: 0 0 0 4px var(--claude-soft), 0 8px 28px rgba(0, 0, 0, 0.55);
-  }
-}
-
 /* ---- Terminal ---- */
 .terminal-panel {
   height: 100%;
@@ -838,6 +680,15 @@ select {
   color: var(--text-dim);
   cursor: pointer;
   white-space: nowrap;
+}
+.terminal-tab.claude {
+  font-weight: 600;
+}
+.claude-glyph.attention {
+  color: var(--warning);
+}
+.claude-glyph.off {
+  color: var(--text-subtle);
 }
 .terminal-tab.active {
   background: var(--bg-elevated);

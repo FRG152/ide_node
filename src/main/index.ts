@@ -2,7 +2,6 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from 'electron'
 import { statSync } from 'node:fs'
 import path from 'node:path'
 import {
-  IDE_MCP_SERVER,
   IPC,
   type IdeCommand,
   type Language,
@@ -11,7 +10,7 @@ import {
   type TerminalCreateOptions,
   type UnsavedChoice
 } from '../shared/ipc'
-import { ClaudeRunner, IDE_SYSTEM_PROMPT } from './claude'
+import { claudeLaunchSpec, prepareClaudeConfig, removeClaudeConfig, translateHook } from './claudeCode'
 import { buildIndex, listDir, readFileContent, resolveInside, writeFileContent } from './fileSystem'
 import { setLanguage, t } from './i18n'
 import { IdeMcpServer } from './ideMcp'
@@ -34,20 +33,12 @@ const terminals = new TerminalManager({
 
 const watcher = new ProjectWatcher((changes) => sendToRenderer(IPC.fsChanges, changes))
 
-const ideMcp = new IdeMcpServer(runIdeCommand)
-
-const claude = new ClaudeRunner(
-  (runId, event) => sendToRenderer(IPC.claudeEvent, runId, event),
-  () => [
-    '--mcp-config',
-    ideMcp.mcpConfig(),
-    // Sin esto, las herramientas MCP pedirían permiso y, sin nadie que lo dé, se denegarían.
-    '--allowedTools',
-    `mcp__${IDE_MCP_SERVER}`,
-    '--append-system-prompt',
-    IDE_SYSTEM_PROMPT
-  ]
-)
+const ideMcp = new IdeMcpServer(runIdeCommand, (payload) => {
+  // Hooks de Claude Code: el renderer resalta lo que lee/edita y sabe si está trabajando.
+  void translateHook(payload, projectRoot).then((events) => {
+    for (const event of events) sendToRenderer(IPC.claudeEvent, event)
+  })
+})
 
 // --- Acciones de Claude sobre la interfaz: el main las reenvía al renderer y espera respuesta ---
 
@@ -90,9 +81,8 @@ function requireRoot(): string {
 }
 
 function openProject(rootPath: string): ProjectInfo {
-  // Las terminales y la ejecución de Claude pertenecen al proyecto anterior.
+  // Las terminales (Claude incluido) pertenecen al proyecto anterior.
   terminals.killAll()
-  claude.cancel()
   projectRoot = rootPath
   watcher.start(rootPath)
   return { rootPath, name: path.basename(rootPath) || rootPath }
@@ -173,11 +163,6 @@ function registerIpc(): void {
     buildMenu()
   })
 
-  ipcMain.handle(IPC.claudeRun, (_event, runId: number, prompt: string, sessionId: string | null) => {
-    if (typeof prompt !== 'string' || !prompt.trim()) throw new Error(t('error.emptyMessage'))
-    claude.run(runId, requireRoot(), prompt, typeof sessionId === 'string' ? sessionId : null)
-  })
-  ipcMain.handle(IPC.claudeCancel, () => claude.cancel())
   ipcMain.on(IPC.ideCommandResult, (_event, id: number, ok: boolean, text: string) => {
     const pending = pendingCommands.get(id)
     if (!pending) return
@@ -188,7 +173,7 @@ function registerIpc(): void {
   })
 
   ipcMain.handle(IPC.terminalCreate, (_event, options: TerminalCreateOptions) =>
-    terminals.create(requireRoot(), options)
+    terminals.create(requireRoot(), options, options.claude ? claudeLaunchSpec() : undefined)
   )
   ipcMain.on(IPC.terminalWrite, (_event, id: number, data: string) => {
     if (typeof data === 'string') terminals.write(id, data)
@@ -260,7 +245,6 @@ function createWindow(): void {
   win.on('closed', () => {
     mainWindow = null
     terminals.killAll()
-    claude.cancel()
     watcher.stop()
   })
 
@@ -275,6 +259,13 @@ app.whenReady().then(async () => {
   buildMenu()
   registerIpc()
   await ideMcp.start()
+  await prepareClaudeConfig(
+    // Una carpeta por instancia: dos ventanas de la app (p. ej. dev y compilada) no se pisan el token.
+    path.join(app.getPath('userData'), 'claude-code', String(process.pid)),
+    ideMcp.mcpConfig(),
+    ideMcp.hookUrl(),
+    ideMcp.authToken
+  )
   createWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -283,8 +274,8 @@ app.whenReady().then(async () => {
 
 app.on('will-quit', () => {
   terminals.killAll()
-  claude.cancel()
   ideMcp.stop()
+  removeClaudeConfig()
   watcher.stop()
 })
 

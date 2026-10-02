@@ -51,6 +51,8 @@ export interface FsChanges {
 export interface TerminalCreateOptions {
   /** Comando a ejecutar; la terminal termina cuando él termina. Sin comando: shell interactiva. */
   command?: string
+  /** Lanza Claude Code (interactivo) conectado a la app: MCP de la interfaz, hooks e instrucciones. */
+  claude?: boolean
   cols: number
   rows: number
 }
@@ -79,39 +81,29 @@ export type IdeCommand =
 /** Qué hace Claude con un archivo, para resaltarlo en el grafo. */
 export type ClaudeFileAccess = 'read' | 'edit'
 
-/** Tokens de una conversación con Claude (suma de sus ejecuciones). */
+/** Tokens de la conversación con Claude (leídos de su transcripción). */
 export interface ClaudeUsage {
   inputTokens: number
   cacheReadTokens: number
   cacheWriteTokens: number
   outputTokens: number
-  /** Coste a precios de lista de la API (con suscripción es orientativo). */
-  costUsd: number
 }
 
-/** Uso de una ventana de límites del plan (0..1) y cuándo se reinicia (epoch en segundos). */
-export interface UsageWindow {
-  utilization: number
-  resetsAt: number
-}
-
-/** Eventos de una ejecución de Claude, ya simplificados por el main. */
+/**
+ * Lo que la app sabe de la sesión de Claude Code que corre en la terminal. Llega por sus
+ * hooks (ver main/claudeCode.ts), ya simplificado por el main.
+ */
 export type ClaudeEvent =
-  /** Id de la conversación (se pasa al siguiente mensaje para continuarla) y modelo en uso. */
-  | { type: 'session'; sessionId: string; model: string | null }
-  /** Tokens que ocupa el contexto en la última llamada al modelo. */
-  | { type: 'context'; tokens: number }
-  /** Tokens de esta ejecución y tamaño de la ventana de contexto del modelo. */
-  | { type: 'usage'; usage: ClaudeUsage; contextWindow: number | null }
-  /** Límites de uso del plan (ventana de 5 horas y semanal). */
-  | { type: 'limits'; fiveHour: UsageWindow | null; sevenDay: UsageWindow | null }
-  /** Trozo de texto de la respuesta, según se genera. */
-  | { type: 'text'; text: string }
+  /** El usuario envió un mensaje o Claude sigue con una herramienta. */
+  | { type: 'working' }
+  /** Claude terminó su turno. */
+  | { type: 'idle' }
+  /** Claude espera al usuario (p. ej. un permiso). */
+  | { type: 'attention'; message: string }
   /** Claude usa una herramienta. `path` es relativo al proyecto si la herramienta toca un archivo de él. */
   | { type: 'tool'; name: string; detail: string; path: string | null; access: ClaudeFileAccess | null }
-  /** Fin de la ejecución. `denied`: herramientas que intentó usar y no estaban permitidas. */
-  | { type: 'done'; ok: boolean; result: string; durationMs: number; denied: string[] }
-  | { type: 'error'; message: string }
+  /** Modelo, contexto en uso (y ventana del modelo, si se conoce) y tokens acumulados. */
+  | { type: 'usage'; model: string | null; contextTokens: number; contextWindow: number | null; usage: ClaudeUsage }
 
 export interface IdeApi {
   /** Carpeta indicada por línea de comandos al arrancar, si la hay. */
@@ -134,13 +126,8 @@ export interface IdeApi {
   confirmUnsaved(paths: string[]): Promise<UnsavedChoice>
   onFsChanges(listener: (changes: FsChanges) => void): () => void
 
-  /**
-   * Envía un mensaje a Claude (Claude Code en modo no interactivo). El renderer elige `runId`
-   * para poder reconocer los eventos aunque lleguen antes que la respuesta de esta llamada.
-   */
-  claudeRun(runId: number, prompt: string, sessionId: string | null): Promise<void>
-  claudeCancel(): Promise<void>
-  onClaudeEvent(listener: (runId: number, event: ClaudeEvent) => void): () => void
+  /** Eventos de la sesión de Claude Code que corre en la terminal. */
+  onClaudeEvent(listener: (event: ClaudeEvent) => void): () => void
 
   /** El main pide al renderer ejecutar una acción de Claude; se responde con `ideCommandResult`. */
   onIdeCommand(listener: (id: number, command: IdeCommand) => void): () => void
@@ -168,8 +155,6 @@ export const IPC = {
   confirmUnsaved: 'ui:confirm-unsaved',
   flushStorage: 'app:flush-storage',
   setLanguage: 'app:set-language',
-  claudeRun: 'claude:run',
-  claudeCancel: 'claude:cancel',
   claudeEvent: 'claude:event',
   ideCommand: 'ide:command',
   ideCommandResult: 'ide:command-result',

@@ -1,7 +1,8 @@
 import { create } from 'zustand'
 import { t } from '../i18n'
 import { errorMessage } from '../lib/errors'
-import { createInstance, disposeInstance, writeToInstance } from '../terminal/registry'
+import { createInstance, disposeInstance, focusInstance, writeToInstance } from '../terminal/registry'
+import { useClaudeStore } from './claudeStore'
 import { useProjectStore } from './projectStore'
 
 export interface TerminalTab {
@@ -10,6 +11,8 @@ export interface TerminalTab {
   /** Script del package.json que ejecuta, o null si es una shell interactiva. */
   script: string | null
   command: string | null
+  /** Pestaña con Claude Code (conectado a la app por MCP y hooks). */
+  claude: boolean
   /** null mientras el proceso sigue vivo. */
   exitCode: number | null
 }
@@ -20,6 +23,8 @@ interface TerminalState {
   panelOpen: boolean
 
   newShell: () => Promise<void>
+  /** Abre (o muestra) la pestaña de Claude Code y le da el foco. */
+  openClaude: () => Promise<void>
   /** Ejecuta un script del package.json; si ya está corriendo, solo lo muestra. */
   runScript: (name: string) => Promise<void>
   stop: (id: number) => Promise<void>
@@ -51,21 +56,22 @@ export const useTerminalStore = create<TerminalState>()((set, get) => {
   let shellCount = 0
 
   /** Crea el proceso y su pestaña. Si `replaceId` existe, la nueva ocupa su lugar. */
-  async function spawn(title: string, script: string | null, command: string | null, replaceId?: number) {
+  async function spawn(title: string, script: string | null, command: string | null, replaceId?: number, claude = false) {
     let id: number
     try {
-      id = await window.api.terminalCreate({ command: command ?? undefined, ...INITIAL_SIZE })
+      id = await window.api.terminalCreate({ command: command ?? undefined, claude, ...INITIAL_SIZE })
     } catch (err) {
       useProjectStore.getState().setError(t('terminal.openFailed', { message: errorMessage(err) }))
-      return
+      return false
     }
-    createInstance(id, command ? `\x1b[90m> ${command}\x1b[0m\r\n\r\n` : undefined)
-    const tab: TerminalTab = { id, title, script, command, exitCode: null }
+    createInstance(id, command ? `\x1b[90m> ${command}\x1b[0m\r\n\r\n` : undefined, { shiftEnterNewline: claude })
+    const tab: TerminalTab = { id, title, script, command, claude, exitCode: null }
     set((s) => {
       const index = s.tabs.findIndex((t) => t.id === replaceId)
       const tabs = index === -1 ? [...s.tabs, tab] : s.tabs.map((t, i) => (i === index ? tab : t))
       return { tabs, active: id, panelOpen: true }
     })
+    return true
   }
 
   return {
@@ -76,6 +82,23 @@ export const useTerminalStore = create<TerminalState>()((set, get) => {
     async newShell() {
       shellCount++
       await spawn(t('terminal.name', { n: shellCount }), null, null)
+    },
+
+    async openClaude() {
+      if (!useProjectStore.getState().project) return
+      const tabs = get().tabs
+      const running = tabs.find((tab) => tab.claude && tab.exitCode === null)
+      if (running) {
+        set({ active: running.id, panelOpen: true })
+        requestAnimationFrame(() => focusInstance(running.id))
+        return
+      }
+      // Una pestaña de Claude que ya terminó se sustituye por una nueva en su sitio.
+      const finished = tabs.find((tab) => tab.claude)
+      if (finished) disposeInstance(finished.id)
+      if (await spawn(t('terminal.claude'), null, null, finished?.id, true)) {
+        useClaudeStore.getState().setStatus('idle')
+      }
     },
 
     async runScript(name) {
@@ -107,6 +130,7 @@ export const useTerminalStore = create<TerminalState>()((set, get) => {
       if (!tab) return
       if (tab.exitCode === null) await window.api.terminalKill(id)
       disposeInstance(id)
+      if (tab.claude) useClaudeStore.getState().reset()
       set((s) => {
         const index = s.tabs.findIndex((t) => t.id === id)
         const tabs = s.tabs.filter((t) => t.id !== id)
@@ -128,6 +152,7 @@ export const useTerminalStore = create<TerminalState>()((set, get) => {
 
     reset() {
       for (const tab of get().tabs) disposeInstance(tab.id)
+      useClaudeStore.getState().reset()
       shellCount = 0
       set({ tabs: [], active: null })
     }
@@ -137,5 +162,6 @@ export const useTerminalStore = create<TerminalState>()((set, get) => {
 window.api.onTerminalExit((id, exitCode) => {
   if (!useTerminalStore.getState().tabs.some((t) => t.id === id)) return
   writeToInstance(id, `\r\n\x1b[90m${t('terminal.exited', { code: exitCode })}\x1b[0m\r\n`)
+  if (useTerminalStore.getState().tabs.find((tab) => tab.id === id)?.claude) useClaudeStore.getState().reset()
   useTerminalStore.setState((s) => ({ tabs: s.tabs.map((t) => (t.id === id ? { ...t, exitCode } : t)) }))
 })

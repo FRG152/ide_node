@@ -1,7 +1,6 @@
 import { ReactFlowProvider } from '@xyflow/react'
 import { useEffect } from 'react'
 import { Group, Panel, Separator } from 'react-resizable-panels'
-import { ClaudeBar } from './claude/ClaudeBar'
 import './claude/ideCommands' // ejecuta en la interfaz las acciones que pide Claude
 import { StatusBar } from './components/StatusBar'
 import { Toolbar } from './components/Toolbar'
@@ -45,7 +44,7 @@ export function App() {
       <Toolbar />
       <Group orientation="vertical" className="workspace">
         <Panel id="main" minSize={120}>
-          {/* El grafo ocupa todo; el editor, los minimizados y Claude flotan encima. */}
+          {/* El grafo ocupa todo; el editor y los minimizados flotan encima. Claude vive en la terminal. */}
           <section className="canvas">
             {project ? (
               <>
@@ -54,7 +53,6 @@ export function App() {
                 </ReactFlowProvider>
                 <MinimizedList />
                 <EditorWindow />
-                <ClaudeBar />
               </>
             ) : (
               <div className="welcome">

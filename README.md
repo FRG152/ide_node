@@ -23,9 +23,8 @@ npm run typecheck
 | Clic en archivo | Lo abre en la ventana central del editor (su nodo queda centrado detrás) |
 | `Esc` en el editor / botón `—` | Minimiza: el archivo pasa a la lista de la derecha (de arriba abajo) |
 | Clic en la lista de la derecha | Vuelve a la ventana central (la que hubiera se minimiza) |
-| Input de abajo | Pídele algo a Claude (`Enter` envía, `Shift+Enter` nueva línea) |
-| `Ctrl+I` | Despliega y enfoca el input de Claude |
-| `Esc` en el input de Claude | Interrumpe a Claude si está trabajando; si no, minimiza el input |
+| `Ctrl+I` o clic en el estado de arriba a la izquierda | Abre (o enfoca) Claude Code en una pestaña de la terminal |
+| `Shift+Enter` en la pestaña de Claude | Nueva línea en el mensaje |
 | `Ctrl+P` | Búsqueda difusa; `Enter` abre el archivo y lo centra en el grafo |
 | `Ctrl+S` / `Ctrl+W` | Guardar / cerrar el archivo de la ventana central |
 | `Ctrl+J` | Mostrar/ocultar la terminal |
@@ -35,19 +34,17 @@ npm run typecheck
 | Botones `▶ script` | Ejecutan los scripts del `package.json` (detecta npm/pnpm/yarn/bun) |
 | `■ Detener` / `↻ Reiniciar` | Matan el script y todos sus procesos hijos / lo relanzan |
 
-- **Claude**: usa tu Claude Code instalado (`claude -p`), con tu cuenta, sin API key. Puede leer
-  y editar archivos del proyecto; ejecutar comandos está desactivado (se deniega y se avisa). Los
-  archivos que lee se resaltan en azul en el grafo y los que edita en morado; las carpetas cerradas
-  con archivos tocados muestran un punto. Cada mensaje continúa la conversación (`⟲` empieza otra).
-- **Arriba a la izquierda**, el estado de Claude: modelo, contexto en uso / ventana del modelo,
-  tokens de la conversación (desglose y coste estimado en el tooltip) y límites del plan (ventana
-  de 5 horas y semanal, en ámbar a partir del 80%). Datos que da el propio Claude Code.
-- Minimizado, el input queda como una píldora que **sigue indicando que Claude trabaja** (con el
-  tiempo transcurrido) y avisa cuando termina.
-- **Claude maneja la interfaz**: si le pides abrir, mostrar o buscar algo, recorre el grafo a la
-  vista (expande carpetas desde la raíz, selecciona y abre el archivo, incluso en una línea). Lo
-  hace con un servidor MCP local de la app (`src/main/ideMcp.ts`, herramientas
-  `mcp__ide_node__*`), protegido con token y solo accesible desde `127.0.0.1`.
+- **Claude** es tu propio Claude Code (el `claude` interactivo, con tu cuenta, permisos, diffs,
+  `/usage`...) corriendo en una pestaña de la terminal. La app le añade:
+  - herramientas para manejar la interfaz (servidor MCP local `src/main/ideMcp.ts`,
+    `mcp__ide_node__*`, con token y solo en `127.0.0.1`): si le pides abrir o enseñarte algo,
+    recorre el grafo a la vista y lo abre, incluso en una línea;
+  - hooks que avisan a la app de lo que hace (requieren `node` en el PATH): el grafo resalta en
+    azul lo que lee y en naranja lo que edita, y arriba a la izquierda se ve si está trabajando
+    (con el tiempo y la última acción), si te necesita (p. ej. un permiso) o si está listo,
+    aunque la terminal esté oculta; también el modelo, el contexto en uso y los tokens.
+- Con el foco en la terminal, las teclas son para Claude Code o la shell, salvo `Ctrl+J`,
+  `Ctrl+I` y el zoom.
 - El zoom y los tamaños de letra se recuerdan entre sesiones; si no están al 100%, aparecen en
   la barra de estado (clic para restablecer).
 - Los archivos con cambios sin guardar muestran `●` en la ventana, en la lista de minimizados y en
@@ -72,13 +69,13 @@ src/
     fileSystem.ts        Listado, índice de búsqueda, lectura/escritura
     watcher.ts           fs.watch recursivo, agrupa ráfagas de eventos
     terminals.ts         Sesiones node-pty, kill del árbol de procesos
-    claude.ts            Lanza `claude -p --output-format stream-json` y simplifica sus eventos
+    claudeCode.ts        Lanza Claude Code en la terminal (MCP, hooks, instrucciones) y traduce sus hooks
   preload/index.ts       Expone window.api (contextBridge)
   renderer/src/
     stores/              Estado (zustand): proyecto/grafo, editor, terminales, Claude, zoom
     graph/               Árbol visible -> nodos + layout; lienzo y cámara
     editor/              Monaco (workers locales), documentos/modelos, ventana central y minimizados
-    claude/              Input y conversación con Claude
+    claude/              Estado de Claude (arriba a la izquierda)
     terminal/            Instancias xterm (sobreviven al ocultar el panel) y panel
     components/          Barra superior, buscador, barra de estado
     lib/shortcuts.ts     Atajos globales (en captura, por delante de Monaco/xterm)

@@ -3,7 +3,6 @@ import type { FsChanges, FsEntry, IndexEntry, ProjectInfo } from '../../../share
 import { t } from '../i18n'
 import { errorMessage } from '../lib/errors'
 import { ancestorsOf, depthOf, parentOf } from '../lib/paths'
-import { useClaudeStore } from './claudeStore'
 import { useEditorStore } from './editorStore'
 import { useTerminalStore } from './terminalStore'
 
@@ -185,7 +184,6 @@ export const useProjectStore = create<ProjectState>()((set, get) => {
   async function loadProject(info: ProjectInfo): Promise<void> {
     useEditorStore.getState().closeAll()
     useTerminalStore.getState().reset()
-    useClaudeStore.getState().newConversation()
     set({
       ...emptyProjectState,
       project: info,

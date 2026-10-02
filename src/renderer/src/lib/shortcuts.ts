@@ -1,5 +1,4 @@
 import { useEffect } from 'react'
-import { useClaudeStore } from '../stores/claudeStore'
 import { useEditorStore } from '../stores/editorStore'
 import { useProjectStore } from '../stores/projectStore'
 import { useTerminalStore } from '../stores/terminalStore'
@@ -40,21 +39,26 @@ export function useGlobalShortcuts(): void {
       if (e.shiftKey) return
       const key = e.key.toLowerCase()
       const editor = useEditorStore.getState()
+      // Con el foco en la terminal (Claude Code, una shell...) solo nos quedamos Ctrl+J y Ctrl+I:
+      // el resto (Ctrl+O, Ctrl+P, Ctrl+S...) son teclas que esos programas usan.
+      const inTerminal = e.target instanceof Element && e.target.closest('.terminal-panel') !== null
 
-      if (key === 'p') {
-        window.dispatchEvent(new Event(FOCUS_SEARCH_EVENT))
+      if (key === 'j') {
+        // Como el "Toggle Panel" de VS Code.
+        useTerminalStore.getState().togglePanel()
       } else if (key === 'i') {
-        // Pregunta a Claude: el IDE gira en torno a él, así que tiene atajo propio.
-        if (useProjectStore.getState().project) useClaudeStore.getState().expandBar()
+        // Claude: el IDE gira en torno a él, así que tiene atajo propio.
+        void useTerminalStore.getState().openClaude()
+      } else if (inTerminal) {
+        return
+      } else if (key === 'p') {
+        window.dispatchEvent(new Event(FOCUS_SEARCH_EVENT))
       } else if (key === 'o') {
         void useProjectStore.getState().openFolder()
       } else if (key === 's') {
         if (editor.active) void editor.save(editor.active)
       } else if (key === 'w') {
         if (editor.active) void editor.close(editor.active)
-      } else if (key === 'j') {
-        // Como el "Toggle Panel" de VS Code. También dentro de la terminal (allí sería un salto de línea).
-        useTerminalStore.getState().togglePanel()
       } else {
         return
       }

@@ -57,7 +57,7 @@ useZoomStore.subscribe((state, prev) => {
   }
 })
 
-export function createInstance(id: number, banner?: string): void {
+export function createInstance(id: number, banner?: string, options: { shiftEnterNewline?: boolean } = {}): void {
   const term = new Terminal({
     fontFamily: 'Consolas, "Courier New", monospace',
     fontSize: useZoomStore.getState().fontSize.terminal,
@@ -75,6 +75,12 @@ export function createInstance(id: number, banner?: string): void {
   // Como en VS Code: Ctrl+C copia si hay texto seleccionado (si no, interrumpe),
   // y Ctrl+V se deja al navegador para que dispare el evento paste.
   term.attachCustomKeyEventHandler((e) => {
+    // En Claude Code, Alt+Enter (ESC + CR) es "nueva línea": Shift+Enter hace lo mismo, como
+    // tras su /terminal-setup en VS Code. Sin esto, xterm envía Enter y el mensaje se manda.
+    if (options.shiftEnterNewline && e.key === 'Enter' && e.shiftKey && !e.ctrlKey && !e.altKey) {
+      if (e.type === 'keydown') window.api.terminalWrite(id, '\x1b\r')
+      return false
+    }
     if (e.type !== 'keydown' || !e.ctrlKey || e.shiftKey || e.altKey) return true
     if (e.key === 'c' && term.hasSelection()) return false
     if (e.key === 'v') return false
@@ -118,6 +124,10 @@ export function fitInstance(id: number): void {
   if (dims.cols !== instance.term.cols || dims.rows !== instance.term.rows) {
     instance.term.resize(dims.cols, dims.rows)
   }
+}
+
+export function focusInstance(id: number): void {
+  instances.get(id)?.term.focus()
 }
 
 export function writeToInstance(id: number, text: string): void {
