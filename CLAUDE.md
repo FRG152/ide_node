@@ -55,7 +55,7 @@ State is a set of zustand stores in `stores/`. They call each other through `use
 Graph (`graph/`):
 
 - `buildGraph.ts` does its own O(n) tree layout during the DFS (columns by depth, leaves stacked, parents centered on their children). It is not dagre: sibling order must stay alphabetical. Folders show at most `MAX_VISIBLE_CHILDREN` children plus a "+N more" node.
-- In `ProjectGraph.tsx`, `keep` requests are applied in the nodes-sync effect: they compare the old position from React Flow's internal store with the new layout, so the clicked folder stays under the cursor. `fit`/`focus` compute the viewport from the **DOM-measured** container size and call `setViewport`. They don't use `fitView`/`setCenter`, because React Flow learns about panel resizes late; a ResizeObserver also re-applies the last camera move if the canvas resizes within 600 ms.
+- Clicking a file or folder issues a `focus` request (center it). `keep` requests are for layout shifts the user didn't click ("+N more", Claude expanding folders, file-watcher changes). In `ProjectGraph.tsx` they are applied in the nodes-sync effect: they compare the old position from React Flow's internal store with the new layout, so the anchored node stays put on screen. `fit`/`focus` compute the viewport from the **DOM-measured** container size and call `setViewport`. They don't use `fitView`/`setCenter`, because React Flow learns about panel resizes late; a ResizeObserver also re-applies the last camera move if the canvas resizes within 600 ms.
 
 Other conventions:
 

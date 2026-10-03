@@ -19,7 +19,7 @@ npm run typecheck
 
 | Acción | Resultado |
 | --- | --- |
-| Clic en carpeta | Expande/colapsa (la carpeta se queda fija bajo el cursor) |
+| Clic en carpeta | Expande/colapsa y la centra (su contenido aparece a la derecha) |
 | Clic en archivo | Lo abre en la ventana central del editor (su nodo queda centrado detrás) |
 | `Esc` en el editor / botón `—` | Minimiza: el archivo pasa a la lista de la derecha (de arriba abajo) |
 | Clic en la lista de la derecha | Vuelve a la ventana central (la que hubiera se minimiza) |

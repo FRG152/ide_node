@@ -221,13 +221,14 @@ export const useProjectStore = create<ProjectState>()((set, get) => {
 
     async toggleFolder(path) {
       set({ selected: path })
+      // Como al abrir un archivo: la cámara centra la carpeta (con su contenido a la derecha).
       if (get().expanded[path]) {
         // Mantenemos el estado de las subcarpetas para restaurarlo al reabrir.
-        set((s) => ({ expanded: without(s.expanded, path), viewRequest: keepRequest(path) }))
+        set((s) => ({ expanded: without(s.expanded, path), viewRequest: focusRequest(path) }))
         return
       }
       if (await loadChildren(path)) {
-        set((s) => ({ expanded: { ...s.expanded, [path]: true }, viewRequest: keepRequest(path) }))
+        set((s) => ({ expanded: { ...s.expanded, [path]: true }, viewRequest: focusRequest(path) }))
       }
     },
 
