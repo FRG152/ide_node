@@ -1,5 +1,5 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { memo } from 'react'
+import { memo, type CSSProperties } from 'react'
 import { colorForFile, extensionOf } from '../lib/fileColors'
 import type { ClaudeFileAccess } from '../../../shared/ipc'
 import { useClaudeStore } from '../stores/claudeStore'
@@ -69,7 +69,8 @@ export const FileNode = memo(function FileNode({ data }: NodeProps<FileFlowNode>
   return (
     <div
       className={classes('node', 'node-file', selected && 'node-selected', claude && `node-claude-${claude}`)}
-      style={{ borderLeftColor: color }}
+      // --file-color: de lejos (zoom semántico) el archivo se pinta entero de su color.
+      style={{ borderLeftColor: color, '--file-color': color } as CSSProperties}
       title={data.path}
     >
       <Handles source={false} />
@@ -92,4 +93,9 @@ export const MoreNode = memo(function MoreNode({ data }: NodeProps<MoreFlowNode>
   )
 })
 
-export const nodeTypes = { folder: FolderNode, file: FileNode, more: MoreNode }
+/** Fondo que agrupa una cuadrícula de hermanos, para que no parezcan hijos de la primera columna. */
+const GridNode = memo(function GridNode() {
+  return <div className="node-grid" />
+})
+
+export const nodeTypes = { folder: FolderNode, file: FileNode, more: MoreNode, grid: GridNode }

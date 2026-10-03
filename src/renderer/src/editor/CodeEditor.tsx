@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { FOCUS_EDITOR_EVENT } from '../graph/keyboard'
 import { useEditorStore } from '../stores/editorStore'
 import { attachWheelZoom, useZoomStore } from '../stores/zoomStore'
 import { getDocument } from './documents'
@@ -38,6 +39,12 @@ export function CodeEditor({ path }: { path: string | null }) {
   useEffect(() => {
     editorRef.current?.updateOptions({ fontSize })
   }, [fontSize])
+
+  useEffect(() => {
+    const focus = (): void => editorRef.current?.focus()
+    window.addEventListener(FOCUS_EDITOR_EVENT, focus)
+    return () => window.removeEventListener(FOCUS_EDITOR_EVENT, focus)
+  }, [])
 
   useEffect(() => {
     const editor = editorRef.current

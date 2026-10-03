@@ -9,6 +9,7 @@ import { useEditorStore } from '../stores/editorStore'
 import { MIN_EDITOR_WIDTH, useEditorLayoutStore } from '../stores/editorLayoutStore'
 import { DEFAULT_FONT_SIZE, useZoomStore } from '../stores/zoomStore'
 import { useProjectStore } from '../stores/projectStore'
+import { FOCUS_GRAPH_EVENT } from '../graph/keyboard'
 import { CodeEditor } from './CodeEditor'
 import { getDocument, type Document } from './documents'
 
@@ -68,7 +69,11 @@ export function EditorWindow() {
   // Esc minimiza. Llega aquí solo si Monaco no lo usó (cerrar el buscador, sugerencias...),
   // porque en ese caso detiene la propagación.
   const onKeyDown = (e: KeyboardEvent): void => {
-    if (e.key === 'Escape' && !e.defaultPrevented) minimize()
+    if (e.key === 'Escape' && !e.defaultPrevented) {
+      minimize()
+      // De vuelta al grafo, listo para seguir con el teclado.
+      window.dispatchEvent(new Event(FOCUS_GRAPH_EVENT))
+    }
   }
 
   return (

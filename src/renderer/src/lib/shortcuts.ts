@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { FOCUS_GRAPH_EVENT } from '../graph/keyboard'
 import { useEditorStore } from '../stores/editorStore'
 import { useProjectStore } from '../stores/projectStore'
 import { useTerminalStore } from '../stores/terminalStore'
@@ -36,6 +37,14 @@ export function useGlobalShortcuts(): void {
         return
       }
 
+      // Ctrl+Shift+E: modo teclado en el grafo (como "Explorer" en VS Code).
+      if (e.shiftKey && e.key.toLowerCase() === 'e') {
+        window.dispatchEvent(new Event(FOCUS_GRAPH_EVENT))
+        e.preventDefault()
+        e.stopPropagation()
+        return
+      }
+
       if (e.shiftKey) return
       const key = e.key.toLowerCase()
       const editor = useEditorStore.getState()
@@ -51,6 +60,8 @@ export function useGlobalShortcuts(): void {
         void useTerminalStore.getState().openClaude()
       } else if (inTerminal) {
         return
+      } else if (key === 'tab') {
+        useEditorStore.getState().cycle()
       } else if (key === 'p') {
         window.dispatchEvent(new Event(FOCUS_SEARCH_EVENT))
       } else if (key === 'o') {

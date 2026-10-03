@@ -19,10 +19,18 @@ npm run typecheck
 
 | Acción | Resultado |
 | --- | --- |
-| Clic en carpeta | Expande/colapsa y la centra (su contenido aparece a la derecha) |
+| Clic en carpeta | Expande/colapsa; al abrirla, la cámara encuadra la carpeta con su contenido (alejándose un poco si hace falta) |
 | Clic en archivo | Lo abre en la ventana central del editor (su nodo queda centrado detrás) |
-| `Esc` en el editor / botón `—` | Minimiza: el archivo pasa a la lista de la derecha (de arriba abajo) |
+| `Esc` en el editor / botón `—` | Minimiza: el archivo pasa a la lista de la derecha (de arriba abajo) y el foco vuelve al grafo |
 | Clic en la lista de la derecha | Vuelve a la ventana central (la que hubiera se minimiza) |
+| `Ctrl+Shift+E` o botón `⌨` | Modo teclado: el grafo toma el foco y se recorre con las flechas (abajo se ven las teclas) |
+| `↑` / `↓` en el grafo | Hermano anterior/siguiente (la cámara sigue a la selección) |
+| `→` / `←` en el grafo | Expande la carpeta o entra a su primer hijo / la colapsa o sube a la carpeta padre |
+| `Enter` en el grafo | Abre el archivo en la ventana central (con el foco en el editor) o expande/colapsa la carpeta |
+| `Home` / `+` / `-` en el grafo | Ir a la raíz / zoom del grafo; `Esc` sale del modo teclado |
+| `Ctrl+Tab` | Pasa al siguiente archivo abierto (rota con la lista de minimizados) |
+| Migas de pan (arriba a la izquierda del grafo) | Ruta del nodo seleccionado; clic en un tramo para ir a esa carpeta |
+| `Auto-colapsar` | Al abrir una carpeta se cierran las que no están en su rama (se recuerda entre sesiones) |
 | `Ctrl+I` o clic en el estado de arriba a la izquierda | Abre (o enfoca) Claude Code en una pestaña de la terminal |
 | `Shift+Enter` en la pestaña de Claude | Nueva línea en el mensaje |
 | `Ctrl+P` | Búsqueda difusa; `Enter` abre el archivo y lo centra en el grafo |
@@ -43,6 +51,11 @@ npm run typecheck
     azul lo que lee y en naranja lo que edita, y arriba a la izquierda se ve si está trabajando
     (con el tiempo y la última acción), si te necesita (p. ej. un permiso) o si está listo,
     aunque la terminal esté oculta; también el modelo, el contexto en uso y los tokens.
+- **Proyectos grandes:** una carpeta con 13 o más elementos seguidos sin abrir los reparte en
+  una cuadrícula (en orden alfabético, de arriba abajo y por columnas) en lugar de una torre;
+  dentro de ella, `←`/`→` sobre un archivo pasan a la columna de al lado. Al alejar el zoom
+  (por debajo de ~60%), el grafo se vuelve un mapa: los archivos son barras de su color y solo
+  se rotulan las carpetas, con letra que se sigue leyendo.
 - Con el foco en la terminal, las teclas son para Claude Code o la shell, salvo `Ctrl+J`,
   `Ctrl+I` y el zoom.
 - El zoom y los tamaños de letra se recuerdan entre sesiones; si no están al 100%, aparecen en

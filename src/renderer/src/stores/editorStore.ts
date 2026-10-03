@@ -21,6 +21,8 @@ interface EditorState {
   /** Lleva el cursor a una línea del archivo (cuando esté en la ventana central). */
   goToLine: (path: string, line: number) => void
   clearPendingLine: () => void
+  /** Trae al centro el primer minimizado (el central pasa al final): Ctrl+Tab los recorre todos. */
+  cycle: () => void
   /** Minimiza el archivo de la ventana central a la lista de la derecha. */
   minimize: () => void
   /** Cierra el archivo; si tiene cambios, pregunta. Devuelve false si el usuario canceló. */
@@ -79,6 +81,11 @@ export const useEditorStore = create<EditorState>()((set, get) => {
 
     clearPendingLine() {
       set({ pendingLine: null })
+    },
+
+    cycle() {
+      const next = get().minimized[0]
+      if (next) void get().open(next, 'center')
     },
 
     minimize() {

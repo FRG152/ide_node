@@ -3,6 +3,7 @@ import type { FsChanges, FsEntry, IndexEntry, ProjectInfo } from '../../../share
 import { t } from '../i18n'
 import { errorMessage } from '../lib/errors'
 import { ancestorsOf, depthOf, parentOf } from '../lib/paths'
+import { loadSetting, saveSetting } from '../lib/settings'
 import { useEditorStore } from './editorStore'
 import { useTerminalStore } from './terminalStore'
 
@@ -12,17 +13,23 @@ export const MAX_VISIBLE_CHILDREN = 100
 /** Tras cambios en disco, esperamos a que se calmen antes de reindexar el proyecto entero. */
 const REINDEX_DELAY_MS = 1000
 
+const AUTO_COLLAPSE_KEY = 'graph.autoCollapse'
+
 type Flags = Record<string, true>
 
 /**
  * Petición de movimiento de cámara para el grafo:
  * - fit: encuadrar todo el árbol.
- * - focus: centrar un nodo (animado). Con `ifHidden`, solo si no está a la vista.
+ * - focus: centrar un nodo (animado). Con `ifHidden`, solo si no está a la vista; con
+ *   `quick`, animación corta (navegación con el teclado); con `withChildren` (al abrir una
+ *   carpeta), encuadra la carpeta junto con su contenido si cabe.
  * - keep: tras un cambio de layout, dejar ese nodo en el mismo punto de la pantalla.
  */
+export type FocusOptions = { ifHidden?: boolean; quick?: boolean; withChildren?: boolean }
+
 export type ViewRequest = { id: number } & (
   | { kind: 'fit' }
-  | { kind: 'focus'; path: string; ifHidden?: boolean }
+  | ({ kind: 'focus'; path: string } & FocusOptions)
   | { kind: 'keep'; path: string }
 )
 
@@ -45,6 +52,8 @@ interface ProjectState {
   /** Petición pendiente para mover la cámara del grafo. */
   viewRequest: ViewRequest | null
   error: string | null
+  /** Al abrir una carpeta se cierran las que no están en su rama (preferencia persistente). */
+  autoCollapse: boolean
 
   openFolder: () => Promise<void>
   openInitialProject: () => Promise<void>
@@ -60,7 +69,7 @@ interface ProjectState {
   expandTo: (path: string) => Promise<void>
   select: (path: string | null) => void
   /** Selecciona el nodo y centra la cámara en él. */
-  focus: (path: string) => void
+  focus: (path: string, options?: { quick?: boolean }) => void
   /** Selecciona el nodo y mueve la cámara solo si quedó fuera de la vista. */
   ensureVisible: (path: string) => void
   showAllChildren: (path: string) => void
@@ -68,15 +77,16 @@ interface ProjectState {
   refresh: () => Promise<void>
   applyFsChanges: (changes: FsChanges) => Promise<void>
   setError: (message: string | null) => void
+  setAutoCollapse: (on: boolean) => void
 }
 
 let nextRequestId = 1
 const fitRequest = (): ViewRequest => ({ id: nextRequestId++, kind: 'fit' })
-const focusRequest = (path: string, ifHidden = false): ViewRequest => ({
+const focusRequest = (path: string, options: FocusOptions = {}): ViewRequest => ({
   id: nextRequestId++,
   kind: 'focus',
   path,
-  ifHidden
+  ...options
 })
 const keepRequest = (path: string): ViewRequest => ({ id: nextRequestId++, kind: 'keep', path })
 
@@ -84,6 +94,17 @@ function without<T>(record: Record<string, T>, key: string): Record<string, T> {
   const copy = { ...record }
   delete copy[key]
   return copy
+}
+
+/** Auto-colapsar: de lo expandido solo queda la rama de `path` (sus ancestros y lo que hay dentro). */
+function onlyBranch(expanded: Flags, path: string): Flags {
+  const ancestors = new Set(ancestorsOf(path))
+  const inside = path === '' ? '' : path + '/'
+  const result: Flags = {}
+  for (const dir of Object.keys(expanded)) {
+    if (ancestors.has(dir) || dir === path || dir.startsWith(inside)) result[dir] = true
+  }
+  return result
 }
 
 function addListing(
@@ -199,6 +220,7 @@ export const useProjectStore = create<ProjectState>()((set, get) => {
   return {
     project: null,
     ...emptyProjectState,
+    autoCollapse: loadSetting(AUTO_COLLAPSE_KEY) === '1',
 
     async openFolder() {
       try {
@@ -228,7 +250,10 @@ export const useProjectStore = create<ProjectState>()((set, get) => {
         return
       }
       if (await loadChildren(path)) {
-        set((s) => ({ expanded: { ...s.expanded, [path]: true }, viewRequest: focusRequest(path) }))
+        set((s) => ({
+          expanded: { ...(s.autoCollapse ? onlyBranch(s.expanded, path) : s.expanded), [path]: true },
+          viewRequest: focusRequest(path, { withChildren: true })
+        }))
       }
     },
 
@@ -249,7 +274,7 @@ export const useProjectStore = create<ProjectState>()((set, get) => {
       if (entry.kind === 'file' && openFile) await useEditorStore.getState().open(path)
 
       set((s) => {
-        const expanded = { ...s.expanded }
+        const expanded = s.autoCollapse ? onlyBranch(s.expanded, path) : { ...s.expanded }
         for (const dir of ancestors) expanded[dir] = true
 
         // Si el nodo quedaría oculto tras el "+N más", mostramos todos los hijos de su carpeta.
@@ -291,12 +316,12 @@ export const useProjectStore = create<ProjectState>()((set, get) => {
       set({ selected: path })
     },
 
-    focus(path) {
-      set({ selected: path, viewRequest: focusRequest(path) })
+    focus(path, { quick = false } = {}) {
+      set({ selected: path, viewRequest: focusRequest(path, { quick }) })
     },
 
     ensureVisible(path) {
-      set({ selected: path, viewRequest: focusRequest(path, true) })
+      set({ selected: path, viewRequest: focusRequest(path, { ifHidden: true }) })
     },
 
     showAllChildren(path) {
@@ -389,6 +414,12 @@ export const useProjectStore = create<ProjectState>()((set, get) => {
 
     setError(message) {
       set({ error: message })
+    },
+
+    setAutoCollapse(on) {
+      saveSetting(AUTO_COLLAPSE_KEY, on ? '1' : '0')
+      // Al activarlo, lo abierto se queda en la rama de la selección.
+      set((s) => (on ? { autoCollapse: on, expanded: onlyBranch(s.expanded, s.selected ?? ''), viewRequest: keepRequest(s.selected ?? '') } : { autoCollapse: on }))
     }
   }
 })
