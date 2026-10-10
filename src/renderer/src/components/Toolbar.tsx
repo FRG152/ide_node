@@ -2,6 +2,7 @@ import { ClaudeStatus } from '../claude/ClaudeStatus'
 import { FOCUS_GRAPH_EVENT } from '../graph/keyboard'
 import { useT } from '../i18n'
 import { useGraphViewStore } from '../stores/graphViewStore'
+import { useHandsStore } from '../stores/handsStore'
 import { useProjectStore } from '../stores/projectStore'
 import { useTerminalStore } from '../stores/terminalStore'
 import { SearchBar } from './SearchBar'
@@ -14,6 +15,8 @@ export function Toolbar() {
   const expandAll = useProjectStore((s) => s.expandAll)
   const view = useGraphViewStore((s) => s.view)
   const setView = useGraphViewStore((s) => s.setView)
+  const handsEnabled = useHandsStore((s) => s.enabled)
+  const toggleHands = useHandsStore((s) => s.toggle)
   const refresh = useProjectStore((s) => s.refresh)
   const autoCollapse = useProjectStore((s) => s.autoCollapse)
   const setAutoCollapse = useProjectStore((s) => s.setAutoCollapse)
@@ -46,6 +49,9 @@ export function Toolbar() {
         title={t('toolbar.keyboard')}
       >
         ⌨
+      </button>
+      <button onClick={toggleHands} aria-pressed={handsEnabled} title={t('toolbar.hands')}>
+        ✋
       </button>
       <button
         onClick={() => setAutoCollapse(!autoCollapse)}

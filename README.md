@@ -32,6 +32,7 @@ npm run typecheck
 | Migas de pan (arriba a la izquierda del grafo) | Ruta del nodo seleccionado; clic en un tramo para ir a esa carpeta |
 | `Auto-colapsar` | Al abrir una carpeta se cierran las que no están en su rama (se recuerda entre sesiones) |
 | `Árbol` / `Grafo` | Cambia la vista del proyecto: el árbol ordenado o una red de nodos sueltos al estilo del grafo de Obsidian (se recuerda) |
+| Botón `✋` | Control con las manos (experimental): la cámara sigue tu mano y mueve un cursor por toda la app |
 | `Expandir todo` | Abre todas las carpetas del proyecto (menos dependencias y lo generado), hasta un tope de 4.000 elementos |
 | `Ctrl+I` o clic en el estado de arriba a la izquierda | Abre (o enfoca) Claude Code en una pestaña de la terminal |
 | `Shift+Enter` en la pestaña de Claude | Nueva línea en el mensaje |
@@ -65,6 +66,14 @@ npm run typecheck
   Al pasar el puntero por un nodo se resaltan sus vecinos. Los rótulos aparecen al acercarse y
   nunca se pisan (primero las carpetas grandes). Con `Expandir todo` se ve el proyecto entero.
   En modo teclado, las flechas saltan al nodo más cercano en esa dirección.
+- **Control con las manos (experimental):** con `✋` se enciende la cámara y aparece un cursor que
+  sigue al punto entre el pulgar y el índice. Juntarlos (pellizco) y soltar es un clic;
+  pellizcar y mover arrastra (el lienzo, un nodo…); pellizcar con las dos manos y separarlas o
+  juntarlas hace zoom. Funciona sobre todo lo que se puede clicar, en las dos vistas del grafo.
+  Abajo a la izquierda se ve la cámara con la mano detectada. El análisis es local (MediaPipe):
+  ni el vídeo ni los puntos de la mano salen del equipo. El modelo (7,8 MB) no va en el
+  repositorio: lo descarga `npm install` (o `npm run models`). Cómo probarlo y afinarlo:
+  [docs/prueba-manos.md](docs/prueba-manos.md).
 - Con el foco en la terminal, las teclas son para Claude Code o la shell, salvo `Ctrl+J`,
   `Ctrl+I` y el zoom.
 - El zoom y los tamaños de letra se recuerdan entre sesiones; si no están al 100%, aparecen en

@@ -13,6 +13,7 @@ npm run dev                               # electron-vite dev server + Electron 
 npm run dev -- -- C:\path\to\project      # start with a folder already open (args after `--` reach Electron)
 npm run build                             # bundles to ./out (~1 min: Monaco's TypeScript worker is ~13 MB)
 npm run typecheck                         # tsc for both projects: tsconfig.node.json (main/preload/shared) and tsconfig.web.json (renderer)
+npm run models                            # downloads the hand-tracking model into src/renderer/public/models (gitignored; also runs on postinstall)
 ```
 
 There is no linter and no test suite in the repo. Changes have been verified end to end by driving the built app over the Chrome DevTools Protocol:
@@ -23,7 +24,7 @@ npx electron . --remote-debugging-port=9333 --user-data-dir=<temp dir> <project 
 # then connect to http://127.0.0.1:9333/json/list and use Runtime.evaluate / Input.* / Page.captureScreenshot
 ```
 
-Use a separate `--user-data-dir`: a running `npm run dev` instance shares the default profile (localStorage, GPU cache). `npm run dev` (http://localhost origin) and the built app (file:// origin) have separate localStorage. Claude states can be tested without spending tokens by POSTing hook payloads to the app's `/hook` endpoint (URL and token are in `<userData>/claude-code/<pid>/mcp.json`). In a folder Claude Code hasn't seen, its trust prompt defaults to "No, exit".
+Use a separate `--user-data-dir`: a running `npm run dev` instance shares the default profile (localStorage, GPU cache). `npm run dev` (http://localhost origin) and the built app (file:// origin) have separate localStorage. Claude states can be tested without spending tokens by POSTing hook payloads to the app's `/hook` endpoint (URL and token are in `<userData>/claude-code/<pid>/mcp.json`). In a folder Claude Code hasn't seen, its trust prompt defaults to "No, exit". Hand control can be tested without a camera: dispatch `ide:hand-frame` window events (`detail: { hands: [{ landmarks: 21 points, handedness }] }`) while it is enabled; for the real model, launch with `--use-fake-device-for-media-stream --use-file-for-fake-video-capture=<640x480 .mjpeg of a hand photo>`. The network view is a canvas: tests find nodes by scanning its pixels for the node colors.
 
 ## Architecture
 
@@ -61,6 +62,12 @@ Graph (`graph/`):
 - **Semantic zoom:** `ZoomLevel` (inside `<ReactFlow>`) writes `--zoom` and `data-zoom="far"|"near"` on the container; below `FAR_ZOOM` the CSS turns files into color bars (`--file-color`) and keeps folder labels ~11px on screen. Doing it in CSS avoids re-rendering every node on each zoom frame.
 - `Breadcrumbs.tsx` shows the selected node's path over the graph. `projectStore.autoCollapse` (persisted) makes `toggleFolder`/`reveal` keep only the branch of the opened path (`onlyBranch`). `expandAll` lists level by level into a local copy and applies it in a single `set`, skipping heavy dirs and stopping past `EXPAND_ALL_MAX_ENTRIES`.
 - **Keyboard mode:** the graph container is focusable (`tabIndex`) and handles keys itself in `onKeyDown`; the tree navigation (arrows, Enter, Home) is in `graph/keyboard.ts` and works on the store's `children`/`expanded`, not on React Flow nodes. In the network view the arrows instead jump to the nearest node in that direction (`GraphViewControl.spatial`). React Flow's own keyboard a11y is disabled (`nodesFocusable`/`edgesFocusable`/`disableKeyboardA11y`). Moving the selection issues `focus` with `quick` (short animation). React Flow cancels mousedown on the pane, so `onPointerDownCapture` focuses the container by hand. The mode is entered with Ctrl+Shift+E, the ⌨ button, or Esc in the editor, all through the `FOCUS_GRAPH_EVENT` window event; Enter on the already-open file fires `FOCUS_EDITOR_EVENT`.
+
+Hand control (`hands/`, experimental, toggled by `handsStore`, never persisted because it turns the camera on):
+
+- `gestures.ts` is pure logic (no DOM, no camera, no imports; it can be run directly with Node's type stripping): hand landmarks in, calls to a `PointerDriver` out. Cursor = midpoint of thumb and index tips mapped from a central zone of the image, smoothed with a 1-euro filter; pinch with hysteresis = press; release within `DRAG_SLOP` = click at the press point; two pinching hands = zoom.
+- `pointer.ts` implements the driver with synthetic pointer + mouse + wheel events on `document.elementFromPoint`, so both graph views and every button work unchanged (d3-zoom/d3-drag need `view: window`). Synthetic events don't trigger CSS `:hover`, hence the `hand-hover` class.
+- `tracker.ts` (loaded with `import()` only when enabled) runs MediaPipe Hand Landmarker on the camera. The wasm comes from `node_modules` through `?url` imports and needs `'wasm-unsafe-eval'` in the CSP; the model is fetched from `public/models`. MediaPipe tries to send usage stats to `odml.pa.googleapis.com` and has no opt-out: the CSP (`default-src 'self'`) blocks it, leaving one console error. Don't add a `connect-src` that lets it through.
 
 Other conventions:
 

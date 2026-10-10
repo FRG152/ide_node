@@ -359,6 +359,87 @@ select {
   height: 100%;
   outline: none;
 }
+/* ---- Control con las manos: cursor, vista previa de la cámara y lo que se clicaría ---- */
+.hand-cursor {
+  position: fixed;
+  z-index: 1000;
+  top: 0;
+  left: 0;
+  width: 28px;
+  height: 28px;
+  margin: -14px 0 0 -14px;
+  background: rgba(177, 185, 249, 0.14);
+  border: 2px solid var(--suggestion);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55), 0 0 14px rgba(177, 185, 249, 0.55);
+  pointer-events: none;
+}
+.hand-cursor::after {
+  content: '';
+  position: absolute;
+  inset: 9px;
+  background: var(--suggestion);
+  border-radius: 50%;
+}
+.hand-cursor.pressed {
+  background: rgba(215, 119, 87, 0.3);
+  border-color: var(--claude);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55), 0 0 18px rgba(215, 119, 87, 0.8);
+}
+.hand-cursor.pressed::after {
+  inset: 5px;
+  background: var(--claude);
+}
+.hand-preview {
+  position: absolute;
+  z-index: 30;
+  left: 15px;
+  bottom: 112px;
+  width: 176px;
+  overflow: hidden;
+  background: #000;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+.hand-preview video,
+.hand-preview canvas {
+  display: block;
+  width: 176px;
+  height: 132px;
+}
+.hand-preview video {
+  object-fit: cover;
+  transform: scaleX(-1);
+  opacity: 0.75;
+}
+.hand-preview canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+.hand-status {
+  display: block;
+  padding: 4px 8px;
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--text-secondary);
+  background: var(--bg-elevated);
+}
+.hand-preview.tracking {
+  border-color: var(--suggestion);
+}
+.hand-preview.no-model .hand-status,
+.hand-preview.no-camera .hand-status {
+  color: var(--warning);
+}
+/* Los eventos sintéticos no activan :hover: marcamos a mano lo que hay bajo el cursor de la mano. */
+.hand-hover {
+  outline: 2px solid var(--suggestion);
+  outline-offset: 1px;
+}
+
 /* ---- Vista de red (estilo Obsidian): un lienzo y sus botones de zoom ---- */
 .network-canvas {
   position: absolute;

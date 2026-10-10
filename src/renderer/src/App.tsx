@@ -6,9 +6,11 @@ import { Toolbar } from './components/Toolbar'
 import { EditorWindow } from './editor/EditorWindow'
 import { MinimizedList } from './editor/MinimizedList'
 import { ProjectGraph } from './graph/ProjectGraph'
+import { HandControl } from './hands/HandControl'
 import { useT } from './i18n'
 import { useGlobalShortcuts } from './lib/shortcuts'
 import { useEditorStore } from './stores/editorStore'
+import { useHandsStore } from './stores/handsStore'
 import { useProjectStore } from './stores/projectStore'
 import { useTerminalStore } from './stores/terminalStore'
 import { TerminalPanel } from './terminal/TerminalPanel'
@@ -18,6 +20,7 @@ export function App() {
   const project = useProjectStore((s) => s.project)
   const openFolder = useProjectStore((s) => s.openFolder)
   const terminalOpen = useTerminalStore((s) => s.panelOpen)
+  const handsEnabled = useHandsStore((s) => s.enabled)
 
   useGlobalShortcuts()
 
@@ -60,6 +63,7 @@ export function App() {
                 </button>
               </div>
             )}
+            {handsEnabled && <HandControl />}
           </section>
         </Panel>
         {project && terminalOpen && (

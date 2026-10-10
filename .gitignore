@@ -3,3 +3,5 @@ out
 dist
 *.log
 .DS_Store
+# Modelos que descarga scripts/fetch-models.mjs
+src/renderer/public/models
