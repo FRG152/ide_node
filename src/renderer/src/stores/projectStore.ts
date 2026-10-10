@@ -15,6 +15,9 @@ const REINDEX_DELAY_MS = 1000
 
 const AUTO_COLLAPSE_KEY = 'graph.autoCollapse'
 
+/** "Expandir todo" deja de bajar niveles al pasar de estas entradas a la vista. */
+const EXPAND_ALL_MAX_ENTRIES = 4000
+
 type Flags = Record<string, true>
 
 /**
@@ -73,7 +76,11 @@ interface ProjectState {
   /** Selecciona el nodo y mueve la cámara solo si quedó fuera de la vista. */
   ensureVisible: (path: string) => void
   showAllChildren: (path: string) => void
+  /** Encuadra todo el grafo. */
+  fit: () => void
   collapseAll: () => void
+  /** Abre todas las carpetas (menos las pesadas), nivel a nivel, hasta un tope de entradas. */
+  expandAll: () => Promise<void>
   refresh: () => Promise<void>
   applyFsChanges: (changes: FsChanges) => Promise<void>
   setError: (message: string | null) => void
@@ -328,8 +335,49 @@ export const useProjectStore = create<ProjectState>()((set, get) => {
       set((s) => ({ showAll: { ...s.showAll, [path]: true }, viewRequest: keepRequest(path) }))
     },
 
+    fit() {
+      set({ viewRequest: fitRequest() })
+    },
+
     collapseAll() {
       set({ expanded: { '': true }, viewRequest: fitRequest() })
+    },
+
+    async expandAll() {
+      const project = get().project
+      if (!project) return
+      // Listamos en un estado aparte y lo aplicamos de golpe: un solo redibujado del grafo.
+      const entries = { ...get().entries }
+      const children = { ...get().children }
+      const expanded: Flags = {}
+      let shown = 1
+      let level = ['']
+      while (level.length > 0 && shown <= EXPAND_ALL_MAX_ENTRIES) {
+        const listings = await Promise.all(
+          level.map((dir) => (children[dir] ? null : window.api.listDir(dir).catch(() => null)))
+        )
+        if (get().project !== project) return
+        const next: string[] = []
+        level.forEach((dir, i) => {
+          const list = listings[i]
+          if (list) addListing(entries, children, dir, list)
+          const kids = children[dir]
+          if (!kids) return // sin permisos o borrada: se queda cerrada
+          expanded[dir] = true
+          shown += kids.length
+          for (const kid of kids) {
+            if (entries[kid].kind === 'directory' && !entries[kid].heavy) next.push(kid)
+          }
+        })
+        level = next
+      }
+      set({
+        entries,
+        children,
+        expanded,
+        viewRequest: fitRequest(),
+        error: level.length > 0 ? t('error.expandAllLimit', { count: EXPAND_ALL_MAX_ENTRIES }) : get().error
+      })
     },
 
     async refresh() {

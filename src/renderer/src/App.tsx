@@ -1,4 +1,3 @@
-import { ReactFlowProvider } from '@xyflow/react'
 import { useEffect } from 'react'
 import { Group, Panel, Separator } from 'react-resizable-panels'
 import './claude/ideCommands' // ejecuta en la interfaz las acciones que pide Claude
@@ -48,9 +47,7 @@ export function App() {
           <section className="canvas">
             {project ? (
               <>
-                <ReactFlowProvider key={project.rootPath}>
-                  <ProjectGraph />
-                </ReactFlowProvider>
+                <ProjectGraph />
                 <MinimizedList />
                 <EditorWindow />
               </>

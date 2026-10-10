@@ -4,9 +4,12 @@
  * ↑/↓ hermano anterior/siguiente · → expande o baja al primer hijo · ← colapsa o sube al
  * padre · Enter abre el archivo (o expande/colapsa la carpeta) · Inicio: raíz. Dentro de una
  * cuadrícula de hermanos, ← / → sobre un archivo pasan a la columna de al lado.
+ *
+ * En la vista de red los nodos no están ordenados: las flechas van al nodo más cercano en
+ * esa dirección (lo calcula la vista) y Enter hace lo demás.
  */
 import { parentOf } from '../lib/paths'
-import type { GridNeighbors } from './buildGraph'
+import type { ArrowKey, GraphViewControl } from './viewControl'
 import { useEditorStore } from '../stores/editorStore'
 import { MAX_VISIBLE_CHILDREN, useProjectStore } from '../stores/projectStore'
 
@@ -15,8 +18,10 @@ export const FOCUS_GRAPH_EVENT = 'ide:focus-graph'
 /** Evento para dar el foco al editor (Enter sobre el archivo que ya estaba abierto). */
 export const FOCUS_EDITOR_EVENT = 'ide:focus-editor'
 
+const ARROW_KEYS: Record<ArrowKey, true> = { ArrowUp: true, ArrowDown: true, ArrowLeft: true, ArrowRight: true }
+
 /** Teclas de navegación (sin modificadores). Devuelve false si la tecla no es del modo teclado. */
-export function handleGraphKey(key: string, gridNeighbors: Record<string, GridNeighbors>): boolean {
+export function handleGraphKey(key: string, view: GraphViewControl | null): boolean {
   const project = useProjectStore.getState()
   const { entries, children, expanded, showAll } = project
   const selected = project.selected ?? ''
@@ -26,7 +31,13 @@ export function handleGraphKey(key: string, gridNeighbors: Record<string, GridNe
     return true
   }
   const isDir = entry.kind === 'directory'
-  const grid = gridNeighbors[selected]
+  const grid = view?.gridNeighbors[selected]
+
+  if (view?.spatial && key in ARROW_KEYS) {
+    const next = view.spatial(selected, key as ArrowKey)
+    if (next !== null) project.focus(next, { quick: true })
+    return true
+  }
 
   switch (key) {
     case 'ArrowDown':

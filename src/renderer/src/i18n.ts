@@ -13,6 +13,11 @@ const en = {
   'toolbar.openFolderTitle': 'Open folder (Ctrl+O)',
   'toolbar.noProject': 'No project',
   'toolbar.collapseAll': 'Collapse all',
+  'toolbar.expandAll': 'Expand all',
+  'toolbar.expandAllTitle': 'Open every folder (dependencies and build output stay closed)',
+  'toolbar.viewTree': 'Tree',
+  'toolbar.viewNetwork': 'Graph',
+  'toolbar.viewTitle': 'How the project is drawn: an ordered tree, or a free graph like the one in Obsidian',
   'toolbar.autoCollapse': 'Auto-collapse',
   'toolbar.autoCollapseTitle': 'Opening a folder closes the ones outside its branch, so a large project stays readable',
   'toolbar.refresh': 'Refresh',
@@ -23,6 +28,7 @@ const en = {
   // Modo teclado
   'keys.title': 'Keyboard mode',
   'keys.move': 'move',
+  'keys.nearest': 'nearest node that way',
   'keys.left': 'collapse / parent',
   'keys.right': 'expand / child',
   'keys.open': 'open',
@@ -75,6 +81,9 @@ const en = {
   'node.moreTitle': 'Show every item in this folder',
   'node.claudeInside': 'Claude touched files in this folder',
   'breadcrumbs.label': 'Path of the selected node',
+  'graph.zoomIn': 'Zoom in',
+  'graph.zoomOut': 'Zoom out',
+  'graph.fit': 'Fit everything',
   // Terminal
   'terminal.interactive': 'Interactive shell',
   'terminal.closeKill': 'Close and kill the process',
@@ -126,6 +135,7 @@ const en = {
   'error.read': 'Could not read "{path}": {message}',
   'error.index': 'Indexing error: {message}',
   'error.missing': '"{path}" no longer exists. Press "Refresh" to update the project.',
+  'error.expandAllLimit': 'The project is too large to open everything: expansion stopped past {count} items.',
   'error.save': 'Could not save "{path}": {message}'
 }
 
@@ -140,6 +150,11 @@ const es: Record<MessageKey, string> = {
   'toolbar.openFolderTitle': 'Abrir carpeta (Ctrl+O)',
   'toolbar.noProject': 'Sin proyecto',
   'toolbar.collapseAll': 'Colapsar todo',
+  'toolbar.expandAll': 'Expandir todo',
+  'toolbar.expandAllTitle': 'Abrir todas las carpetas (las dependencias y lo generado se quedan cerradas)',
+  'toolbar.viewTree': 'Árbol',
+  'toolbar.viewNetwork': 'Grafo',
+  'toolbar.viewTitle': 'Cómo se dibuja el proyecto: un árbol ordenado o un grafo libre como el de Obsidian',
   'toolbar.autoCollapse': 'Auto-colapsar',
   'toolbar.autoCollapseTitle': 'Al abrir una carpeta se cierran las que no están en su rama, para que un proyecto grande siga legible',
   'toolbar.refresh': 'Refrescar',
@@ -149,6 +164,7 @@ const es: Record<MessageKey, string> = {
   'toolbar.keyboard': 'Modo teclado: recorre el grafo con las flechas (Ctrl+Shift+E)',
   'keys.title': 'Modo teclado',
   'keys.move': 'moverse',
+  'keys.nearest': 'nodo más cercano hacia ahí',
   'keys.left': 'colapsar / padre',
   'keys.right': 'expandir / hijo',
   'keys.open': 'abrir',
@@ -196,6 +212,9 @@ const es: Record<MessageKey, string> = {
   'node.moreTitle': 'Mostrar todos los elementos de esta carpeta',
   'node.claudeInside': 'Claude ha tocado archivos de esta carpeta',
   'breadcrumbs.label': 'Ruta del nodo seleccionado',
+  'graph.zoomIn': 'Acercar',
+  'graph.zoomOut': 'Alejar',
+  'graph.fit': 'Encuadrar todo',
   'terminal.interactive': 'Shell interactiva',
   'terminal.closeKill': 'Cerrar y matar el proceso',
   'terminal.close': 'Cerrar',
@@ -242,6 +261,7 @@ const es: Record<MessageKey, string> = {
   'error.read': 'No se pudo leer "{path}": {message}',
   'error.index': 'Error indexando: {message}',
   'error.missing': '"{path}" ya no existe. Pulsa "Refrescar" para actualizar el proyecto.',
+  'error.expandAllLimit': 'El proyecto es demasiado grande para abrirlo entero: se dejó de expandir al pasar de {count} elementos.',
   'error.save': 'No se pudo guardar "{path}": {message}'
 }
 

@@ -118,6 +118,25 @@ button.primary:hover:not(:disabled) {
   border-color: var(--claude-shimmer);
   color: #1f1e1d;
 }
+/* Selector de dos o más opciones pegadas (p. ej. Árbol | Grafo). */
+.segmented {
+  display: flex;
+}
+.segmented button {
+  border-radius: 0;
+}
+.segmented button:first-child {
+  border-radius: 6px 0 0 6px;
+}
+.segmented button:last-child {
+  border-radius: 0 6px 6px 0;
+}
+.segmented button + button {
+  margin-left: -1px;
+}
+.segmented button[aria-pressed='true'] {
+  position: relative;
+}
 /* Botones interruptor (p. ej. Auto-colapsar) cuando están activos. */
 button[aria-pressed='true'] {
   color: var(--claude);
@@ -339,6 +358,44 @@ select {
   width: 100%;
   height: 100%;
   outline: none;
+}
+/* ---- Vista de red (estilo Obsidian): un lienzo y sus botones de zoom ---- */
+.network-canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+.graph-controls {
+  position: absolute;
+  z-index: 5;
+  left: 15px;
+  bottom: 15px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.graph-controls button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  color: var(--text-secondary);
+  background: var(--bg-panel);
+  border: none;
+  border-radius: 0;
+}
+.graph-controls button + button {
+  border-top: 1px solid var(--border);
+}
+.graph-controls button:hover {
+  color: var(--claude);
 }
 /* Modo teclado: la selección se ve más (es el "cursor") y aparece la barra de teclas. */
 .graph-container.keyboard .node-selected {

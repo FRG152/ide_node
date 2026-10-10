@@ -31,6 +31,8 @@ npm run typecheck
 | `Ctrl+Tab` | Pasa al siguiente archivo abierto (rota con la lista de minimizados) |
 | Migas de pan (arriba a la izquierda del grafo) | Ruta del nodo seleccionado; clic en un tramo para ir a esa carpeta |
 | `Auto-colapsar` | Al abrir una carpeta se cierran las que no están en su rama (se recuerda entre sesiones) |
+| `Árbol` / `Grafo` | Cambia la vista del proyecto: el árbol ordenado o una red de nodos sueltos al estilo del grafo de Obsidian (se recuerda) |
+| `Expandir todo` | Abre todas las carpetas del proyecto (menos dependencias y lo generado), hasta un tope de 4.000 elementos |
 | `Ctrl+I` o clic en el estado de arriba a la izquierda | Abre (o enfoca) Claude Code en una pestaña de la terminal |
 | `Shift+Enter` en la pestaña de Claude | Nueva línea en el mensaje |
 | `Ctrl+P` | Búsqueda difusa; `Enter` abre el archivo y lo centra en el grafo |
@@ -56,6 +58,13 @@ npm run typecheck
   dentro de ella, `←`/`→` sobre un archivo pasan a la columna de al lado. Al alejar el zoom
   (por debajo de ~60%), el grafo se vuelve un mapa: los archivos son barras de su color y solo
   se rotulan las carpetas, con letra que se sigue leyendo.
+- **Vista de grafo (experimental):** los mismos nodos que el árbol, pero sueltos y unidos por
+  muelles, como en Obsidian. Las carpetas cerradas son naranjas (clic para abrirlas: sus hijos
+  brotan de ella), las abiertas blancas y más grandes cuanto más contienen, y los archivos
+  grises. Se arrastra el fondo para moverse, la rueda hace zoom y los nodos se pueden arrastrar.
+  Al pasar el puntero por un nodo se resaltan sus vecinos. Los rótulos aparecen al acercarse y
+  nunca se pisan (primero las carpetas grandes). Con `Expandir todo` se ve el proyecto entero.
+  En modo teclado, las flechas saltan al nodo más cercano en esa dirección.
 - Con el foco en la terminal, las teclas son para Claude Code o la shell, salvo `Ctrl+J`,
   `Ctrl+I` y el zoom.
 - El zoom y los tamaños de letra se recuerdan entre sesiones; si no están al 100%, aparecen en
